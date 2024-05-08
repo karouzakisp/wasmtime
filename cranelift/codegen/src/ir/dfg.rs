@@ -342,7 +342,7 @@ impl DataFlowGraph {
 
     /// Get the definition of a value.
     ///
-    /// This is either the instruction that defined it or the Block that has the value as an
+    /// This is either the instruction that defined it or the Block that has the value as a
     /// parameter.
     pub fn value_def(&self, v: Value) -> ValueDef {
         match ValueData::from(self.values[v]) {
