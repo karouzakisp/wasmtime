@@ -30,6 +30,34 @@ use smallvec::SmallVec;
 mod cost;
 mod elaborate;
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Sequence(Option<u32>);
+
+impl Sequence {
+    pub fn reserved_sequence() -> Self {
+        Sequence(None)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct SeqInst {
+    seq_num: u32,
+    inst: Inst,
+    before: Inst,
+}
+
+impl Ord for SeqInst {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.seq_num.cmp(&self.seq_num)
+    }
+}
+
+impl PartialOrd for SeqInst {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Pass over a Function that does the whole aegraph thing.
 ///
 /// - Removes non-skeleton nodes from the Layout.
@@ -68,6 +96,9 @@ pub struct EgraphPass<'a> {
     /// Which Values do we want to rematerialize in each block where
     /// they're used?
     remat_values: FxHashSet<Value>,
+    /// A map from values to sequence numbers for preservation of the
+    /// original program order.
+    inst_sequence_map: SecondaryMap<Inst, Sequence>,
     /// Stats collected while we run this pass.
     pub(crate) stats: Stats,
 }
@@ -733,6 +764,7 @@ impl<'a> EgraphPass<'a> {
             ctrl_plane,
             stats: Stats::default(),
             remat_values: FxHashSet::default(),
+            inst_sequence_map: SecondaryMap::with_default(Sequence::reserved_sequence()),
         }
     }
 
@@ -778,6 +810,12 @@ impl<'a> EgraphPass<'a> {
     /// only refer to its subset that exists at this stage, to
     /// maintain acyclicity.)
     fn remove_pure_and_optimize(&mut self) {
+        let mut inst_seq: u32 = 0;
+
+        // This pass relies on every value having a unique name, so first
+        // eliminate any value aliases.
+        self.func.dfg.resolve_all_aliases();
+
         let mut cursor = FuncCursor::new(self.func);
         let mut value_to_opt_value: SecondaryMap<Value, Value> =
             SecondaryMap::with_default(Value::reserved_value());
@@ -907,12 +945,16 @@ impl<'a> EgraphPass<'a> {
                             // Insert into GVN map and optimize any new nodes
                             // inserted (recursively performing this work for
                             // any nodes the optimization rules produce).
-                            let inst = NewOrExistingInst::Existing(inst);
-                            ctx.insert_pure_enode(inst);
+                            let new_or_existing_inst = NewOrExistingInst::Existing(inst);
+                            ctx.insert_pure_enode(new_or_existing_inst);
                             // We've now rewritten all uses, or will when we
                             // see them, and the instruction exists as a pure
                             // enode in the eclass, so we can remove it.
+                            // NOTE: possible track target
                             cursor.remove_inst_and_step_back();
+                            let next_inst_seq = inst_seq.wrapping_add(1);
+                            self.inst_sequence_map[inst] = Sequence(Some(next_inst_seq));
+                            inst_seq = next_inst_seq;
                         } else {
                             if let Some(cmd) = ctx.optimize_skeleton_inst(inst, block) {
                                 Self::execute_skeleton_inst_simplification(
@@ -1018,7 +1060,8 @@ impl<'a> EgraphPass<'a> {
             self.func,
             &self.domtree,
             self.loop_analysis,
-            &self.remat_values,
+            &mut self.remat_values,
+            &mut self.inst_sequence_map,
             &mut self.stats,
             self.ctrl_plane,
         );
