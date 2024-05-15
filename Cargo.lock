@@ -607,6 +607,7 @@ dependencies = [
  "criterion",
  "gimli",
  "hashbrown 0.14.3",
+ "heapz",
  "log",
  "postcard",
  "regalloc2",
@@ -1399,6 +1400,12 @@ checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
 dependencies = [
  "ahash",
 ]
+
+[[package]]
+name = "heapz"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c73be534804a439c63f224d4790ea3889ca91fc4389367f9ca4cf741878b315f"
 
 [[package]]
 name = "heck"

@@ -21,38 +21,65 @@ use core::cmp::Ordering;
 use cranelift_control::ControlPlane;
 use cranelift_entity::packed_option::ReservedValue;
 use cranelift_entity::SecondaryMap;
+use heapz::RankPairingHeap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
+use std::collections::VecDeque;
 use std::hash::Hasher;
 
 mod cost;
 mod elaborate;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Sequence(Option<u32>);
+#[derive(Copy, Clone, Eq)]
+pub struct OrderingInfo {
+    last_use_count: u8,
+    critical_path: u16,
+    seq: u32,
+    before: Option<Inst>,
+}
 
-impl Sequence {
-    pub fn reserved_sequence() -> Self {
-        Sequence(None)
+impl OrderingInfo {
+    pub fn reserved_value() -> Self {
+        OrderingInfo {
+            last_use_count: u8::MIN,
+            critical_path: u16::MIN,
+            seq: u32::MAX,
+            before: None,
+        }
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct SeqInst {
-    seq_num: u32,
-    inst: Inst,
-    before: Inst,
+impl PartialEq for OrderingInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.last_use_count == other.last_use_count
+            && self.critical_path == other.critical_path
+            && self.seq == other.seq
+    }
 }
 
-impl Ord for SeqInst {
+impl Ord for OrderingInfo {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.seq_num.cmp(&self.seq_num)
+        let ord = other.last_use_count.cmp(&self.last_use_count);
+        match ord {
+            Ordering::Equal => {
+                let ord = other.critical_path.cmp(&self.critical_path);
+                match ord {
+                    Ordering::Equal => match other.seq.cmp(&self.seq) {
+                        Ordering::Equal => Ordering::Equal,
+                        Ordering::Greater => Ordering::Less,
+                        Ordering::Less => Ordering::Greater,
+                    },
+                    _ => ord,
+                }
+            }
+            _ => ord,
+        }
     }
 }
 
-impl PartialOrd for SeqInst {
+impl PartialOrd for OrderingInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        Some(other.cmp(&self))
     }
 }
 
@@ -97,9 +124,23 @@ pub struct EgraphPass<'a> {
     /// (A canonical Value is the *oldest* Value in an eclass,
     /// i.e. tree of union value-nodes).
     remat_values: FxHashSet<Value>,
-    /// A map from values to sequence numbers for preservation of the
-    /// original program order.
-    inst_sequence_map: SecondaryMap<Inst, Sequence>,
+    /// A map from values to their ordering information.
+    inst_ordering_info_map: SecondaryMap<Inst, OrderingInfo>,
+    /// A map that tracks how many dependencies (either true data dependencies
+    /// or dependencies due to skeleton instructions' program order) are
+    /// remainining. When this count goes to 0, the instruction is inserted to
+    /// the ready queue.
+    dependencies_count: SecondaryMap<Inst, u8>,
+    /// A Small Vector that is used to indicate the original program order
+    /// of the skeleton Instructions.
+    skeleton_inst_order: VecDeque<Inst>,
+    /// A map from each Value to the Instructions that use it.
+    value_uses: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
+    /// A priority queue that holds all ready-to-be-placed instructions.
+    ///
+    /// It is implemented as a Max Rank Pairing Heap, with the max element
+    /// being the one that should be placed first each time.
+    ready_queue: RankPairingHeap<Inst, OrderingInfo>,
     /// Stats collected while we run this pass.
     pub(crate) stats: Stats,
     /// Union-find that maps all members of a Union tree (eclass) back
@@ -554,7 +595,11 @@ impl<'a> EgraphPass<'a> {
             stats: Stats::default(),
             eclasses: UnionFind::with_capacity(num_values),
             remat_values: FxHashSet::default(),
-            inst_sequence_map: SecondaryMap::with_default(Sequence::reserved_sequence()),
+            inst_ordering_info_map: SecondaryMap::with_default(OrderingInfo::reserved_value()),
+            dependencies_count: SecondaryMap::with_default(0),
+            skeleton_inst_order: VecDeque::new(),
+            value_uses: SecondaryMap::with_default(SmallVec::new()),
+            ready_queue: RankPairingHeap::single_pass_max(),
         }
     }
 
@@ -742,12 +787,17 @@ impl<'a> EgraphPass<'a> {
                             // We've now rewritten all uses, or will when we
                             // see them, and the instruction exists as a pure
                             // enode in the eclass, so we can remove it.
-                            // NOTE: possible track target
                             cursor.remove_inst_and_step_back();
                             let next_inst_seq = inst_seq.wrapping_add(1);
-                            self.inst_sequence_map[inst] = Sequence(Some(next_inst_seq));
+                            self.inst_ordering_info_map[inst] = OrderingInfo {
+                                last_use_count: u8::MAX,
+                                critical_path: u16::MAX,
+                                seq: next_inst_seq,
+                                before: None,
+                            };
                             inst_seq = next_inst_seq;
                         } else {
+                            self.skeleton_inst_order.push_back(inst);
                             if ctx.optimize_skeleton_inst(inst) {
                                 cursor.remove_inst_and_step_back();
                             }
@@ -790,7 +840,7 @@ impl<'a> EgraphPass<'a> {
             &self.domtree,
             self.loop_analysis,
             &mut self.remat_values,
-            &mut self.inst_sequence_map,
+            &mut self.inst_ordering_info_map,
             &mut self.stats,
             self.ctrl_plane,
         );

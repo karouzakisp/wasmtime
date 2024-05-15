@@ -24,6 +24,7 @@ cranelift-entity = { workspace = true }
 cranelift-bforest = { workspace = true }
 cranelift-control = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
+heapz = "1.1.4"
 target-lexicon = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, optional = true }
