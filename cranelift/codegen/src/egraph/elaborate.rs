@@ -2,8 +2,7 @@
 //! in CFG nodes.
 
 use super::cost::Cost;
-use super::SeqInst;
-use super::Sequence;
+use super::OrderingInfo;
 use super::Stats;
 use crate::dominator_tree::DominatorTreePreorder;
 use crate::hash_map::Entry as HashEntry;
@@ -17,7 +16,6 @@ use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
-use std::collections::BinaryHeap;
 
 pub(crate) struct Elaborator<'a> {
     func: &'a mut Function,
@@ -67,16 +65,13 @@ pub(crate) struct Elaborator<'a> {
     remat_copies: FxHashMap<(Block, Value), Value>,
     /// A map from values to sequence numbers for preservation of the
     /// original program order.
-    inst_sequence_map: &'a mut SecondaryMap<Inst, Sequence>,
+    inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
     /// Stats for various events during egraph processing, to help
     /// with optimization of this infrastructure.
     stats: &'a mut Stats,
     /// Chaos-mode control-plane so we can test that we still get
     /// correct results when our heuristics make bad decisions.
     ctrl_plane: &'a mut ControlPlane,
-    /// A priority queue used to retain information on the elaborated
-    /// instructions' original program order.
-    skeleton_insts_pq: BinaryHeap<SeqInst>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,7 +146,7 @@ impl<'a> Elaborator<'a> {
         domtree: &'a DominatorTreePreorder,
         loop_analysis: &'a LoopAnalysis,
         remat_values: &'a FxHashSet<Value>,
-        inst_sequence_map: &'a mut SecondaryMap<Inst, Sequence>,
+        inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
         stats: &'a mut Stats,
         ctrl_plane: &'a mut ControlPlane,
     ) -> Self {
@@ -172,10 +167,9 @@ impl<'a> Elaborator<'a> {
             elab_result_stack: vec![],
             block_stack: vec![],
             remat_copies: FxHashMap::default(),
-            inst_sequence_map,
+            inst_ordering_info_map,
             stats,
             ctrl_plane,
-            skeleton_insts_pq: BinaryHeap::new(),
         }
     }
 
@@ -709,26 +703,7 @@ impl<'a> Elaborator<'a> {
                         "something has gone very wrong if we are elaborating effectful \
                          instructions, they should have remained in the skeleton"
                     );
-                    // NOTE: insert to a priority queue instead of the above if
-                    // the instruction was in the original Layout, and if not,
-                    // insert it in a helping vector that will later be used to
-                    // create the final Layout order.
-                    match self.inst_sequence_map[inst] {
-                        Sequence(Some(seq_num)) => self.skeleton_insts_pq.push(SeqInst {
-                            seq_num,
-                            inst,
-                            before,
-                        }),
-                        Sequence(None) => {
-                            while let Some(SeqInst { inst, before, .. }) =
-                                self.skeleton_insts_pq.pop()
-                            {
-                                self.func.layout.insert_inst(inst, before)
-                            }
-                            self.skeleton_insts_pq.drain();
-                            self.func.layout.insert_inst(inst, before);
-                        }
-                    }
+                    // NOTE: Here was the insertion point of the instruction to the layout.
 
                     // Update the inst's arguments.
                     self.func
@@ -774,6 +749,8 @@ impl<'a> Elaborator<'a> {
                 first_branch = Some(inst);
             }
 
+            // TODO: maybe update the dependency_count values here?
+
             // Determine where elaboration inserts insts.
             let before = first_branch.unwrap_or(inst);
             trace!(" -> inserting before {}", before);
@@ -798,12 +775,6 @@ impl<'a> Elaborator<'a> {
                 trace!("   -> rewrote arg to {:?}", new_arg);
                 *arg = new_arg.value;
             }
-            // NOTE: elaborate the remaining instructions from the priority
-            // queue and drain it.
-            while let Some(SeqInst { inst, before, .. }) = self.skeleton_insts_pq.pop() {
-                self.func.layout.insert_inst(inst, before)
-            }
-            self.skeleton_insts_pq.drain();
 
             self.func
                 .dfg
