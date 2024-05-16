@@ -579,6 +579,7 @@ impl<'a> Elaborator<'a> {
                             // Depends on some value at the current
                             // loop depth, or remat forces it here:
                             // place it at the current location.
+                            self.inst_ordering_info_map[inst].before = None;
                             (
                                 self.value_to_elaborated_value.depth(),
                                 before,
@@ -595,6 +596,7 @@ impl<'a> Elaborator<'a> {
                             // Determine the instruction at which we
                             // insert in `data.hoist_block`.
                             let before = self.func.layout.last_inst(data.hoist_block).unwrap();
+                            self.inst_ordering_info_map[inst].before = Some(before);
                             (data.scope_depth as usize, before, data.hoist_block)
                         };
 
@@ -695,8 +697,7 @@ impl<'a> Elaborator<'a> {
                         inst
                     };
 
-                    //  NOTE: check what's up with the loop hoisting thing.
-                    // Place the inst in the priority queue, alongside with its
+                    //  NOTE
                     // `before` inst for the possible hoisting outside of loops.
                     assert!(
                         is_pure_for_egraph(self.func, inst),
