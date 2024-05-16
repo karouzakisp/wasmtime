@@ -570,30 +570,35 @@ impl<'a> Elaborator<'a> {
                     // place the instruction. This is the current
                     // block *unless* we hoist above a loop when all
                     // args are loop-invariant (and this op is pure).
-                    let (scope_depth, before, insert_block) = if loop_hoist_level
-                        == self.loop_stack.len()
-                    {
-                        // Depends on some value at the current
-                        // loop depth, or remat forces it here:
-                        // place it at the current location.
-                        (
-                            self.value_to_elaborated_value.depth(),
-                            before,
-                            self.func.layout.inst_block(before).unwrap(),
-                        )
-                    } else {
-                        // Does not depend on any args at current
-                        // loop depth: hoist out of loop.
-                        self.stats.elaborate_licm_hoist += 1;
-                        let data = &self.loop_stack[loop_hoist_level];
-                        // `data.hoist_block` should dominate `before`'s block.
-                        let before_block = self.func.layout.inst_block(before).unwrap();
-                        debug_assert!(self.domtree.block_dominates(data.hoist_block, before_block));
-                        // Determine the instruction at which we
-                        // insert in `data.hoist_block`.
-                        let before = self.func.layout.last_inst(data.hoist_block).unwrap();
-                        (data.scope_depth as usize, before, data.hoist_block)
-                    };
+                    let (scope_depth, before, insert_block) =
+                        if loop_hoist_level == self.loop_stack.len() {
+                            // Depends on some value at the current
+                            // loop depth, or remat forces it here:
+                            // place it at the current location.
+                            self.inst_ordering_info_map[inst].before = None;
+                            (
+                                self.value_to_elaborated_value.depth(),
+                                before,
+                                self.func.layout.inst_block(before).unwrap(),
+                            )
+                        } else {
+                            // Does not depend on any args at current
+                            // loop depth: hoist out of loop.
+                            self.stats.elaborate_licm_hoist += 1;
+                            let data = &self.loop_stack[loop_hoist_level];
+                            // `data.hoist_block` should dominate `before`'s block.
+                            let before_block = self.func.layout.inst_block(before).unwrap();
+                            debug_assert!(self.domtree.dominates(
+                                data.hoist_block,
+                                before_block,
+                                self.func.layout
+                            ));
+                            // Determine the instruction at which we
+                            // insert in `data.hoist_block`.
+                            let before = self.func.layout.last_inst(data.hoist_block).unwrap();
+                            self.inst_ordering_info_map[inst].before = Some(before);
+                            (data.scope_depth as usize, before, data.hoist_block)
+                        };
 
                     trace!(
                         " -> decided to place: before {} insert_block {}",
@@ -691,8 +696,7 @@ impl<'a> Elaborator<'a> {
                         inst
                     };
 
-                    //  NOTE: check what's up with the loop hoisting thing.
-                    // Place the inst in the priority queue, alongside with its
+                    //  NOTE
                     // `before` inst for the possible hoisting outside of loops.
                     assert!(
                         is_pure_for_egraph(self.func, inst),

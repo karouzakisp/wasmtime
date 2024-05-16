@@ -1158,7 +1158,7 @@ impl<'a> CtxEq<(Type, InstructionData), (Type, InstructionData)> for GVNContext<
         (a_ty, a_inst): &(Type, InstructionData),
         (b_ty, b_inst): &(Type, InstructionData),
     ) -> bool {
-        a_ty == b_ty && a_inst.eq(b_inst, self.value_lists)
+        a_ty == b_ty && a_inst.eq(b_inst)
     }
 }
 
