@@ -761,12 +761,16 @@ impl<'a> Elaborator<'a> {
         // next-link to continue the iteration.
         let mut next_inst = self.func.layout.first_inst(block);
         let mut first_branch = None;
+        if (next_inst != None) {
+            dependencies_count[next_inst.unwrap()] = -1;
+        }
         while let Some(inst) = next_inst {
             trace!(
                 "elaborating inst {} with results {:?}",
                 inst,
                 self.func.dfg.inst_results(inst)
             );
+            dependencies_count[inst] += 1;
             // Record the first branch we see in the block; all
             // elaboration for args of *any* branch must be inserted
             // before the *first* branch, because the branch group
@@ -824,6 +828,34 @@ impl<'a> Elaborator<'a> {
         }
     }
 
+    fn schedule_insts(&mut self, block: Block) {
+        // NOTE
+        // construct LUC for the given block.
+    }
+
+    /// Construct the ddg and the CriticalPath (CP) for all instructions
+    /// in the given `block`.
+    fn construct_ddg_and_features(&mut self, block: Block) {
+        let mut inst = self.func.layout.last_inst(block);
+        let mut inst_queue: VecDeque<Inst> = VecDeque::new();
+
+        while let Some(next_inst) = inst {
+            for arg in self.func.dfg.inst_values(next_inst) {
+                if !self.value_uses[arg].iter().any(|&inst| inst == next_inst) {
+                    // Add the instruction to the value_uses map of its arguments.
+                    self.value_uses[arg].push(next_inst);
+                    // NOTE : -> check if there is anything else to be done
+                    // it probably is
+                    if let Some(inst) = self.func.dfg.value_def(arg).inst() {
+                        inst_queue.push_back(inst);
+                    }
+                }
+            }
+
+            inst = inst_queue.pop_front();
+        }
+    }
+
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
         self.block_stack.push(BlockStackEntry::Elaborate {
             block: self.func.layout.entry_block().unwrap(),
@@ -841,7 +873,7 @@ impl<'a> Elaborator<'a> {
                     self.value_to_elaborated_value.increment_depth();
 
                     self.elaborate_block(&mut elab_values, idom, block);
-
+                    self.schedule_insts(block);
                     // Push children. We are doing a preorder
                     // traversal so we do this after processing this
                     // block above.
