@@ -457,6 +457,31 @@ impl Layout {
         self.assign_inst_seq(inst);
     }
 
+    /// Prepend `inst` to the start of `block`.
+    pub fn prepend_inst(&mut self, inst: Inst, block: Block) {
+        debug_assert_eq!(self.inst_block(inst), None);
+        debug_assert!(
+            self.is_block_inserted(block),
+            "Cannot append instructions to block not in layout"
+        );
+        {
+            let block_node = &mut self.blocks[block];
+            {
+                let inst_node = &mut self.insts[inst];
+                inst_node.block = block.into();
+                inst_node.next = block_node.first_inst;
+                debug_assert!(inst_node.prev.is_none());
+            }
+            if block_node.last_inst.is_none() {
+                block_node.last_inst = inst.into();
+            } else {
+                self.insts[block_node.first_inst.unwrap()].prev = inst.into();
+            }
+            block_node.first_inst = inst.into();
+        }
+        self.assign_inst_seq(inst);
+    }
+
     /// Fetch a block's first instruction.
     pub fn first_inst(&self, block: Block) -> Option<Inst> {
         self.blocks[block].first_inst.into()

@@ -32,7 +32,9 @@ mod elaborate;
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
     last_use_count: u8,
-    critical_path: u16,
+    // TODO: check if u64 is indeed needed or if we have a bug
+    critical_path: u64,
+    // TODO: check if the `seq` type size is optimal
     seq: u32,
     before: Option<Inst>,
 }
@@ -41,7 +43,7 @@ impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
             last_use_count: u8::MIN,
-            critical_path: u16::MIN,
+            critical_path: u64::MIN,
             seq: u32::MAX,
             before: None,
         }
@@ -514,6 +516,7 @@ where
         // Otherwise, if a load or store, process it with the alias
         // analysis to see if we can optimize it (rewrite in terms of
         // an earlier load or stored value).
+        // FIXME: we panick here because of process_inst()
         else if let Some(new_result) =
             self.alias_analysis
                 .process_inst(self.func, self.alias_analysis_state, inst)
@@ -591,7 +594,7 @@ impl<'a> EgraphPass<'a> {
 
     /// Run the process.
     pub fn run(&mut self) {
-        self.remove_pure_and_optimize();
+        self.empty_block_and_optimize();
 
         trace!("egraph built:\n{}\n", self.func.display());
         if cfg!(feature = "trace-log") {
@@ -610,6 +613,7 @@ impl<'a> EgraphPass<'a> {
         self.elaborate();
     }
 
+    /// TODO: rework documentation
     /// Remove pure nodes from the `Layout` of the function, ensuring
     /// that only the "side-effect skeleton" remains, and also
     /// optimize the pure nodes. This is the first step of
@@ -629,7 +633,7 @@ impl<'a> EgraphPass<'a> {
     /// because the eclass can continue to be updated and we need to
     /// only refer to its subset that exists at this stage, to
     /// maintain acyclicity.)
-    fn remove_pure_and_optimize(&mut self) {
+    fn empty_block_and_optimize(&mut self) {
         // Sequencer value for instructions — used to create the
         // `inst_sequence_map`.
         let mut inst_seq: u32 = 0;
@@ -736,6 +740,7 @@ impl<'a> EgraphPass<'a> {
                         cursor.func.dfg.map_inst_values(inst, |arg| {
                             let new_value = value_to_opt_value[arg];
                             trace!("rewriting arg {} of inst {} to {}", arg, inst, new_value);
+                            // FIXME: we panick here
                             debug_assert_ne!(new_value, Value::reserved_value());
                             new_value
                         });
@@ -777,16 +782,16 @@ impl<'a> EgraphPass<'a> {
                             let next_inst_seq = inst_seq.wrapping_add(1);
                             self.inst_ordering_info_map[inst] = OrderingInfo {
                                 last_use_count: u8::MAX,
-                                critical_path: u16::MAX,
+                                critical_path: u64::MAX,
                                 seq: next_inst_seq,
                                 before: None,
                             };
                             inst_seq = next_inst_seq;
                         } else {
                             self.skeleton_inst_order.push_back(inst);
-                            if ctx.optimize_skeleton_inst(inst) {
-                                cursor.remove_inst_and_step_back();
-                            }
+                            // FIXME: we panick here
+                            ctx.optimize_skeleton_inst(inst);
+                            cursor.remove_inst_and_step_back();
                         }
                     }
                 }
@@ -847,9 +852,10 @@ impl<'a> EgraphPass<'a> {
                     .dfg
                     .inst_values(inst)
                     .for_each(|arg| match self.func.dfg.value_def(arg) {
-                        ValueDef::Result(i, _) => {
-                            debug_assert!(self.func.layout.inst_block(i).is_some());
-                        }
+                        // TODO: this check is now incorrect
+                        // ValueDef::Result(i, _) => {
+                        //     debug_assert!(self.func.layout.inst_block(i).is_some());
+                        // }
                         ValueDef::Union(..) => {
                             panic!("egraph union node {} still reachable at {}!", arg, inst);
                         }

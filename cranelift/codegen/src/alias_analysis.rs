@@ -334,6 +334,7 @@ impl<'a> AliasAnalysis<'a> {
                             value.index(),
                             def_inst.index()
                         );
+                        // FIXME: panicking here because def_inst is not in layout.
                         if self.domtree.dominates(def_inst, inst, &func.layout) {
                             trace!(
                                 " -> dominates; value equiv from v{} to v{} inserted",

@@ -80,7 +80,7 @@ pub(crate) struct Elaborator<'a> {
     ///
     /// When this count goes to 0, the instruction is inserted to the ready
     /// queue.
-    dependencies_count: SecondaryMap<Inst, u8>,
+    dependencies_count: SecondaryMap<Inst, u16>,
     /// A priority queue that holds all ready-to-be-placed instructions.
     ///
     /// It is implemented as a Max Rank Pairing Heap, with the max element
@@ -894,8 +894,15 @@ impl<'a> Elaborator<'a> {
 
     /// Put instructions back to the function's layout using the LUC and CP
     /// heuristics.
-    fn schedule_insts(&mut self) {
+    fn schedule_insts(&mut self, block: Block) {
         while let Some(inst) = self.ready_queue.pop() {
+            // Insert the instruction to the layout.
+            if let Some(before) = self.inst_ordering_info_map[inst].before {
+                self.func.layout.insert_inst(inst, before);
+            } else {
+                self.func.layout.prepend_inst(inst, block);
+            }
+
             // Update the last-use-counts of instructions.
             for arg in self.func.dfg.inst_values(inst) {
                 // Remove the instruction from the argument value's users.
@@ -966,7 +973,7 @@ impl<'a> Elaborator<'a> {
 
                     self.elaborate_block(&mut elab_values, idom, block);
                     self.compute_ddg_and_value_uses(block);
-                    self.schedule_insts();
+                    self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
                     // traversal so we do this after processing this
