@@ -15,7 +15,7 @@ use crate::trace;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
-use heapz::RankPairingHeap;
+use heapz::{DecreaseKey, Heap, RankPairingHeap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 
@@ -759,18 +759,24 @@ impl<'a> Elaborator<'a> {
         // list in Layout. We will insert instructions that are
         // elaborated *before* `inst`, so we can always use its
         // next-link to continue the iteration.
-        let mut next_inst = self.func.layout.first_inst(block);
+        let first_inst = self.func.layout.first_inst(block);
+        let mut next_inst = first_inst;
         let mut first_branch = None;
-        if (next_inst != None) {
-            dependencies_count[next_inst.unwrap()] = -1;
-        }
+
         while let Some(inst) = next_inst {
             trace!(
                 "elaborating inst {} with results {:?}",
                 inst,
                 self.func.dfg.inst_results(inst)
             );
-            dependencies_count[inst] += 1;
+
+            // The relative order of skeleton instructions must not change,
+            // since that would change program semantics. To achieve this, we
+            // manually fabricate dependencies among them using the dependencies
+            // count map. We basically add one dependency for each of the
+            // skeleton instructions with their preceding skeleton instruction.
+            self.dependencies_count[inst] += 1;
+
             // Record the first branch we see in the block; all
             // elaboration for args of *any* branch must be inserted
             // before the *first* branch, because the branch group
@@ -778,8 +784,6 @@ impl<'a> Elaborator<'a> {
             if self.func.dfg.insts[inst].opcode().is_branch() && first_branch == None {
                 first_branch = Some(inst);
             }
-
-            // TODO: maybe update the dependency_count values here?
 
             // Determine where elaboration inserts insts.
             let before = first_branch.unwrap_or(inst);
@@ -826,33 +830,121 @@ impl<'a> Elaborator<'a> {
 
             next_inst = self.func.layout.next_inst(inst);
         }
+
+        // The first skeleton instruction has no dependency due to previous
+        // skeleton instructions.
+        if let Some(first_inst) = first_inst {
+            self.dependencies_count[first_inst] -= 1;
+        }
     }
 
-    fn schedule_insts(&mut self, block: Block) {
-        // NOTE
-        // construct LUC for the given block.
-    }
-
-    /// Construct the ddg and the CriticalPath (CP) for all instructions
-    /// in the given `block`.
-    fn construct_ddg_and_features(&mut self, block: Block) {
-        let mut inst = self.func.layout.last_inst(block);
+    /// Compute the critical path for all instructions in the given `block`, and
+    /// construct the `value_uses` and the `dependencies_count` maps.
+    ///
+    /// It also initializes the ready queue with all instructions that have 0
+    /// dependencies after the pass.
+    fn compute_ddg_and_value_uses(&mut self, block: Block) {
+        let mut next_inst = self.func.layout.last_inst(block);
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
+        let mut visited_arg: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
 
-        while let Some(next_inst) = inst {
-            for arg in self.func.dfg.inst_values(next_inst) {
-                if !self.value_uses[arg].iter().any(|&inst| inst == next_inst) {
-                    // Add the instruction to the value_uses map of its arguments.
-                    self.value_uses[arg].push(next_inst);
-                    // NOTE : -> check if there is anything else to be done
-                    // it probably is
-                    if let Some(inst) = self.func.dfg.value_def(arg).inst() {
-                        inst_queue.push_back(inst);
+        while let Some(inst) = next_inst {
+            for arg in self.func.dfg.inst_values(inst) {
+                // TODO: there probably exists a less expensive way to get unique args.
+                // Skip already visited arguments in case the instruction used a
+                // value multiple times.
+                if visited_arg[arg] == true {
+                    continue;
+                }
+                visited_arg[arg] = true;
+
+                // Add the instruction to the value_uses map of its arguments.
+                if !self.value_uses[arg].iter().any(|&inst| inst == inst) {
+                    self.value_uses[arg].push(inst);
+                }
+
+                // Make sure that the argument comes from the result of an
+                // instruction inside the current block.
+                if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                    // Calculate the critical path for each instruction.
+                    let prev_critical_path = self.inst_ordering_info_map[arg_inst].critical_path;
+                    let current_path_size = self.inst_ordering_info_map[inst].critical_path + 1;
+                    if current_path_size > prev_critical_path {
+                        self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
                     }
+
+                    // Construct the `dependencies_count` map.
+                    self.dependencies_count[inst] += 1;
+
+                    // Push the arguments of the instruction to the instruction
+                    // queue for the breadth-first traversal of the data
+                    // dependency graph.
+                    inst_queue.push_back(arg_inst);
                 }
             }
 
-            inst = inst_queue.pop_front();
+            next_inst = inst_queue.pop_front();
+            // Initialize the ready queue with all instructions that have 0 dependencies.
+            if self.dependencies_count[inst] == 0 {
+                self.ready_queue
+                    .push(inst, self.inst_ordering_info_map[inst]);
+            }
+        }
+    }
+
+    /// Put instructions back to the function's layout using the LUC and CP
+    /// heuristics.
+    fn schedule_insts(&mut self) {
+        while let Some(inst) = self.ready_queue.pop() {
+            // Update the last-use-counts of instructions.
+            for arg in self.func.dfg.inst_values(inst) {
+                // Remove the instruction from the argument value's users.
+                self.value_uses[arg].retain(|&mut arg_user| arg_user != inst);
+                // If the value has exactly one user left, increment its last-use-count,
+                // and update the RankPairingHeap representing the ready queue.
+                if self.value_uses[arg].len() == 1 {
+                    let last_user = self.value_uses[arg].get(0).unwrap().clone();
+                    self.inst_ordering_info_map[last_user].last_use_count += 1;
+                    self.ready_queue
+                        .update(&last_user, self.inst_ordering_info_map[last_user]);
+                }
+            }
+
+            // Update the dependency counts for instructions and append ready instructions
+            // to the ready queue.
+            for result in self.func.dfg.inst_results(inst).iter().cloned() {
+                // For each result, find all instructions that use it and decrement their
+                // dependency count.
+                for user in self.value_uses[result].iter().cloned() {
+                    self.dependencies_count[user] -= 1;
+                    // If the instruction has no dependencies left, push it in the ready queue.
+                    if self.dependencies_count[user] == 0 {
+                        self.ready_queue
+                            .push(user, self.inst_ordering_info_map[user]);
+                        // If the instruction was a skeleton instruction, decrement the dependency
+                        // count of the next skeleton instruction. If the next skeleton instruction
+                        // reaches zero dependencies too, continue the same operation until we find
+                        // the first skeleton instruction with active dependencies, or until we
+                        // elaborate the last skeleton instruction.
+                        if self.skeleton_inst_order.pop_front() == Some(user) {
+                            while let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
+                                let next_skeleton_inst = next_skeleton_inst.clone();
+                                self.dependencies_count[next_skeleton_inst] -= 1;
+                                if self.dependencies_count[next_skeleton_inst] == 0 {
+                                    self.skeleton_inst_order.pop_front();
+                                    self.ready_queue.push(
+                                        next_skeleton_inst,
+                                        self.inst_ordering_info_map[next_skeleton_inst],
+                                    );
+                                    continue;
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -873,7 +965,9 @@ impl<'a> Elaborator<'a> {
                     self.value_to_elaborated_value.increment_depth();
 
                     self.elaborate_block(&mut elab_values, idom, block);
-                    self.schedule_insts(block);
+                    self.compute_ddg_and_value_uses(block);
+                    self.schedule_insts();
+
                     // Push children. We are doing a preorder
                     // traversal so we do this after processing this
                     // block above.
