@@ -4,6 +4,7 @@
 use super::cost::Cost;
 use super::OrderingInfo;
 use super::Stats;
+use super::VecDeque;
 use crate::dominator_tree::DominatorTreePreorder;
 use crate::hash_map::Entry as HashEntry;
 use crate::inst_predicates::is_pure_for_egraph;
@@ -14,6 +15,7 @@ use crate::trace;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
+use heapz::RankPairingHeap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 
@@ -63,9 +65,27 @@ pub(crate) struct Elaborator<'a> {
     block_stack: Vec<BlockStackEntry>,
     /// Copies of values that have been rematerialized.
     remat_copies: FxHashMap<(Block, Value), Value>,
-    /// A map from values to sequence numbers for preservation of the
-    /// original program order.
+    /// A map from instructions to their ordering information (LUC, CP,
+    /// original program order sequence and information for the LICM
+    /// optimization).
     inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
+    /// A queue that is used to indicate the original program order
+    /// of the skeleton instructions.
+    skeleton_inst_order: &'a mut VecDeque<Inst>,
+    /// A map from each Value to the instructions that use it.
+    value_uses: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
+    /// A map that tracks how many dependencies (either true data dependencies
+    /// or dependencies due to skeleton instructions' program order) are
+    /// remainining for each instruction to get scheduled.
+    ///
+    /// When this count goes to 0, the instruction is inserted to the ready
+    /// queue.
+    dependencies_count: SecondaryMap<Inst, u8>,
+    /// A priority queue that holds all ready-to-be-placed instructions.
+    ///
+    /// It is implemented as a Max Rank Pairing Heap, with the max element
+    /// being the one that should be placed first each time.
+    ready_queue: RankPairingHeap<Inst, OrderingInfo>,
     /// Stats for various events during egraph processing, to help
     /// with optimization of this infrastructure.
     stats: &'a mut Stats,
@@ -147,6 +167,7 @@ impl<'a> Elaborator<'a> {
         loop_analysis: &'a LoopAnalysis,
         remat_values: &'a FxHashSet<Value>,
         inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
+        skeleton_inst_order: &'a mut VecDeque<Inst>,
         stats: &'a mut Stats,
         ctrl_plane: &'a mut ControlPlane,
     ) -> Self {
@@ -168,6 +189,10 @@ impl<'a> Elaborator<'a> {
             block_stack: vec![],
             remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
+            skeleton_inst_order,
+            dependencies_count: SecondaryMap::with_default(0),
+            value_uses: SecondaryMap::with_default(SmallVec::new()),
+            ready_queue: RankPairingHeap::single_pass_max(),
             stats,
             ctrl_plane,
         }

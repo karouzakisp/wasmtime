@@ -21,7 +21,6 @@ use core::cmp::Ordering;
 use cranelift_control::ControlPlane;
 use cranelift_entity::packed_option::ReservedValue;
 use cranelift_entity::SecondaryMap;
-use heapz::RankPairingHeap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
@@ -124,23 +123,13 @@ pub struct EgraphPass<'a> {
     /// (A canonical Value is the *oldest* Value in an eclass,
     /// i.e. tree of union value-nodes).
     remat_values: FxHashSet<Value>,
-    /// A map from values to their ordering information.
+    /// A map from instructions to their ordering information (LUC, CP,
+    /// original program order sequence and information for the LICM
+    /// optimization).
     inst_ordering_info_map: SecondaryMap<Inst, OrderingInfo>,
-    /// A map that tracks how many dependencies (either true data dependencies
-    /// or dependencies due to skeleton instructions' program order) are
-    /// remainining. When this count goes to 0, the instruction is inserted to
-    /// the ready queue.
-    dependencies_count: SecondaryMap<Inst, u8>,
-    /// A Small Vector that is used to indicate the original program order
+    /// A queue that is used to indicate the original program order
     /// of the skeleton Instructions.
     skeleton_inst_order: VecDeque<Inst>,
-    /// A map from each Value to the Instructions that use it.
-    value_uses: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
-    /// A priority queue that holds all ready-to-be-placed instructions.
-    ///
-    /// It is implemented as a Max Rank Pairing Heap, with the max element
-    /// being the one that should be placed first each time.
-    ready_queue: RankPairingHeap<Inst, OrderingInfo>,
     /// Stats collected while we run this pass.
     pub(crate) stats: Stats,
     /// Union-find that maps all members of a Union tree (eclass) back
@@ -596,10 +585,7 @@ impl<'a> EgraphPass<'a> {
             eclasses: UnionFind::with_capacity(num_values),
             remat_values: FxHashSet::default(),
             inst_ordering_info_map: SecondaryMap::with_default(OrderingInfo::reserved_value()),
-            dependencies_count: SecondaryMap::with_default(0),
             skeleton_inst_order: VecDeque::new(),
-            value_uses: SecondaryMap::with_default(SmallVec::new()),
-            ready_queue: RankPairingHeap::single_pass_max(),
         }
     }
 
@@ -841,6 +827,7 @@ impl<'a> EgraphPass<'a> {
             self.loop_analysis,
             &mut self.remat_values,
             &mut self.inst_ordering_info_map,
+            &mut self.skeleton_inst_order,
             &mut self.stats,
             self.ctrl_plane,
         );
