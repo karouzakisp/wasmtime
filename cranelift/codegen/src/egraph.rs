@@ -32,9 +32,9 @@ mod elaborate;
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
     last_use_count: u8,
-    // TODO: check if u64 is indeed needed or if we have a bug
-    critical_path: u64,
-    // TODO: check if the `seq` type size is optimal
+    // TODO: check if the u16 type is optimal
+    critical_path: u16,
+    // TODO: check if the u32 type size is optimal
     seq: u32,
     before: Option<Inst>,
 }
@@ -43,7 +43,7 @@ impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
             last_use_count: u8::MIN,
-            critical_path: u64::MIN,
+            critical_path: u16::MIN,
             seq: u32::MAX,
             before: None,
         }
@@ -592,20 +592,16 @@ impl<'a> EgraphPass<'a> {
         }
     }
 
-    pub fn remove_pending_skeletons(&mut self, &mut unhandled_skeletons) {
-        for skeleton_inst in unhandled_skeletons.drain(..) {
-            self.func.layout.remove_inst(skeleton_inst);
-        }
-    }
-
     /// Run the process.
     pub fn run(&mut self) {
         // some skeletons insts cannot be removed due to alias analysis
-        // so we need to handle them after all the alias analysis calls. 
-        let unhandled_skeletons = SmallVec::new();
-        self.empty_block_and_optimize(&unhandled_skeletons);
-        self.remove_pending_skeletons(&unhandled_skeletons);
-        
+        // so we need to handle them after all the alias analysis calls.
+        let mut unhandled_skeletons = SmallVec::new();
+        self.empty_block_and_optimize(&mut unhandled_skeletons);
+        unhandled_skeletons
+            .drain(..)
+            .for_each(|skeleton_inst| self.func.layout.remove_inst(skeleton_inst));
+
         trace!("egraph built:\n{}\n", self.func.display());
         if cfg!(feature = "trace-log") {
             for (value, def) in self.func.dfg.values_and_defs() {
@@ -643,7 +639,7 @@ impl<'a> EgraphPass<'a> {
     /// because the eclass can continue to be updated and we need to
     /// only refer to its subset that exists at this stage, to
     /// maintain acyclicity.)
-    fn empty_block_and_optimize(&mut self, &mut unhandled_skeletons: SmallVec ) {
+    fn empty_block_and_optimize(&mut self, unhandled_skeletons: &mut SmallVec<[Inst; 32]>) {
         // Sequencer value for instructions — used to create the
         // `inst_sequence_map`.
         let mut inst_seq: u32 = 0;
@@ -791,8 +787,8 @@ impl<'a> EgraphPass<'a> {
                             cursor.remove_inst_and_step_back();
                             let next_inst_seq = inst_seq.wrapping_add(1);
                             self.inst_ordering_info_map[inst] = OrderingInfo {
-                                last_use_count: u8::MAX,
-                                critical_path: u64::MAX,
+                                last_use_count: u8::MIN,
+                                critical_path: u16::MIN,
                                 seq: next_inst_seq,
                                 before: None,
                             };
@@ -800,10 +796,10 @@ impl<'a> EgraphPass<'a> {
                         } else {
                             self.skeleton_inst_order.push_back(inst);
                             // FIXME: we panick here
-                            if(ctx.optimize_skeleton_inst(inst){
+                            if ctx.optimize_skeleton_inst(inst) {
                                 cursor.remove_inst_and_step_back();
-                            }else{
-                                unhandled_skeletons.push(inst); 
+                            } else {
+                                unhandled_skeletons.push(inst);
                             }
                         }
                     }
