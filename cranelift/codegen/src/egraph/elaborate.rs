@@ -930,22 +930,16 @@ impl<'a> Elaborator<'a> {
                             .push(user, self.inst_ordering_info_map[user]);
                         // If the instruction was a skeleton instruction, decrement the dependency
                         // count of the next skeleton instruction. If the next skeleton instruction
-                        // reaches zero dependencies too, continue the same operation until we find
-                        // the first skeleton instruction with active dependencies, or until we
-                        // elaborate the last skeleton instruction.
+                        // reaches zero dependencies too, put it in the ready queue too.
                         if self.skeleton_inst_order.pop_front() == Some(user) {
-                            while let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
+                            if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
                                 let next_skeleton_inst = next_skeleton_inst.clone();
                                 self.dependencies_count[next_skeleton_inst] -= 1;
                                 if self.dependencies_count[next_skeleton_inst] == 0 {
-                                    self.skeleton_inst_order.pop_front();
                                     self.ready_queue.push(
                                         next_skeleton_inst,
                                         self.inst_ordering_info_map[next_skeleton_inst],
                                     );
-                                    continue;
-                                } else {
-                                    break;
                                 }
                             }
                         }
