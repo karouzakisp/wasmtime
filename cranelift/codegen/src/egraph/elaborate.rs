@@ -722,14 +722,14 @@ impl<'a> Elaborator<'a> {
                         inst
                     };
 
-                    //  NOTE
-                    // `before` inst for the possible hoisting outside of loops.
+                    // This should hold since skeleton instructions are removed
+                    // after `empty_block_and_optimize()` is called.
                     assert!(
                         is_pure_for_egraph(self.func, inst),
                         "something has gone very wrong if we are elaborating effectful \
                          instructions, they should have remained in the skeleton"
                     );
-                    // NOTE: Here was the insertion point of the instruction to the layout.
+                    // NOTE: Here was the insertion point of instructions to the layout.
 
                     // Update the inst's arguments.
                     self.func
@@ -755,6 +755,7 @@ impl<'a> Elaborator<'a> {
         trace!("elaborate_block: block {}", block);
         self.start_block(idom, block);
 
+        // TODO: probably rework documentation
         // Iterate over the side-effecting skeleton using the linked
         // list in Layout. We will insert instructions that are
         // elaborated *before* `inst`, so we can always use its
@@ -900,7 +901,7 @@ impl<'a> Elaborator<'a> {
             if let Some(before) = self.inst_ordering_info_map[inst].before {
                 self.func.layout.insert_inst(inst, before);
             } else {
-                self.func.layout.prepend_inst(inst, block);
+                self.func.layout.append_inst(inst, block);
             }
 
             // Update the last-use-counts of instructions.
@@ -967,6 +968,7 @@ impl<'a> Elaborator<'a> {
 
                     self.elaborate_block(&mut elab_values, idom, block);
                     self.compute_ddg_and_value_uses(block);
+                    // FIXME: we probably need to reset ordering info for every block
                     self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
