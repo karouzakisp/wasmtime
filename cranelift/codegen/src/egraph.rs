@@ -592,10 +592,20 @@ impl<'a> EgraphPass<'a> {
         }
     }
 
+    pub fn remove_pending_skeletons(&mut self, &mut unhandled_skeletons) {
+        for skeleton_inst in unhandled_skeletons.drain(..) {
+            self.func.layout.remove_inst(skeleton_inst);
+        }
+    }
+
     /// Run the process.
     pub fn run(&mut self) {
-        self.empty_block_and_optimize();
-
+        // some skeletons insts cannot be removed due to alias analysis
+        // so we need to handle them after all the alias analysis calls. 
+        let unhandled_skeletons = SmallVec::new();
+        self.empty_block_and_optimize(&unhandled_skeletons);
+        self.remove_pending_skeletons(&unhandled_skeletons);
+        
         trace!("egraph built:\n{}\n", self.func.display());
         if cfg!(feature = "trace-log") {
             for (value, def) in self.func.dfg.values_and_defs() {
@@ -633,7 +643,7 @@ impl<'a> EgraphPass<'a> {
     /// because the eclass can continue to be updated and we need to
     /// only refer to its subset that exists at this stage, to
     /// maintain acyclicity.)
-    fn empty_block_and_optimize(&mut self) {
+    fn empty_block_and_optimize(&mut self, &mut unhandled_skeletons: SmallVec ) {
         // Sequencer value for instructions — used to create the
         // `inst_sequence_map`.
         let mut inst_seq: u32 = 0;
@@ -790,8 +800,11 @@ impl<'a> EgraphPass<'a> {
                         } else {
                             self.skeleton_inst_order.push_back(inst);
                             // FIXME: we panick here
-                            ctx.optimize_skeleton_inst(inst);
-                            cursor.remove_inst_and_step_back();
+                            if(ctx.optimize_skeleton_inst(inst){
+                                cursor.remove_inst_and_step_back();
+                            }else{
+                                unhandled_skeletons.push(inst); 
+                            }
                         }
                     }
                 }
