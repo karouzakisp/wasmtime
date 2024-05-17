@@ -34,7 +34,7 @@ pub struct OrderingInfo {
     last_use_count: u8,
     // TODO: check if the u16 type is optimal
     critical_path: u16,
-    // TODO: check if the u32 type size is optimal
+    // TODO: check if the u32 type is optimal
     seq: u32,
     before: Option<Inst>,
 }
@@ -594,12 +594,12 @@ impl<'a> EgraphPass<'a> {
 
     /// Run the process.
     pub fn run(&mut self) {
-        // some skeletons insts cannot be removed due to alias analysis
-        // so we need to handle them after all the alias analysis calls.
-        let mut unhandled_skeletons = SmallVec::new();
-        self.empty_block_and_optimize(&mut unhandled_skeletons);
-        unhandled_skeletons
-            .drain(..)
+        // Some skeletons instructions cannot be removed due to alias analysis.
+        // We need to handle them after all the alias analysis calls.
+        self.empty_block_and_optimize();
+        self.skeleton_inst_order
+            .iter()
+            .cloned()
             .for_each(|skeleton_inst| self.func.layout.remove_inst(skeleton_inst));
 
         trace!("egraph built:\n{}\n", self.func.display());
@@ -639,7 +639,7 @@ impl<'a> EgraphPass<'a> {
     /// because the eclass can continue to be updated and we need to
     /// only refer to its subset that exists at this stage, to
     /// maintain acyclicity.)
-    fn empty_block_and_optimize(&mut self, unhandled_skeletons: &mut SmallVec<[Inst; 32]>) {
+    fn empty_block_and_optimize(&mut self) {
         // Sequencer value for instructions — used to create the
         // `inst_sequence_map`.
         let mut inst_seq: u32 = 0;
@@ -746,7 +746,6 @@ impl<'a> EgraphPass<'a> {
                         cursor.func.dfg.map_inst_values(inst, |arg| {
                             let new_value = value_to_opt_value[arg];
                             trace!("rewriting arg {} of inst {} to {}", arg, inst, new_value);
-                            // FIXME: we panick here
                             debug_assert_ne!(new_value, Value::reserved_value());
                             new_value
                         });
@@ -794,12 +793,10 @@ impl<'a> EgraphPass<'a> {
                             };
                             inst_seq = next_inst_seq;
                         } else {
-                            self.skeleton_inst_order.push_back(inst);
-                            // FIXME: we panick here
                             if ctx.optimize_skeleton_inst(inst) {
                                 cursor.remove_inst_and_step_back();
                             } else {
-                                unhandled_skeletons.push(inst);
+                                self.skeleton_inst_order.push_back(inst);
                             }
                         }
                     }
