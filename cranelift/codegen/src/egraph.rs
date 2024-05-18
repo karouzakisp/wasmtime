@@ -597,10 +597,6 @@ impl<'a> EgraphPass<'a> {
         // Some skeletons instructions cannot be removed due to alias analysis.
         // We need to handle them after all the alias analysis calls.
         self.empty_block_and_optimize();
-        self.skeleton_inst_order
-            .iter()
-            .cloned()
-            .for_each(|skeleton_inst| self.func.layout.remove_inst(skeleton_inst));
 
         trace!("egraph built:\n{}\n", self.func.display());
         if cfg!(feature = "trace-log") {
@@ -784,18 +780,24 @@ impl<'a> EgraphPass<'a> {
                             // see them, and the instruction exists as a pure
                             // enode in the eclass, so we can remove it.
                             cursor.remove_inst_and_step_back();
-                            let next_inst_seq = inst_seq.wrapping_add(1);
                             self.inst_ordering_info_map[inst] = OrderingInfo {
                                 last_use_count: u8::MIN,
                                 critical_path: u16::MIN,
-                                seq: next_inst_seq,
+                                seq: inst_seq,
                                 before: None,
                             };
-                            inst_seq = next_inst_seq;
+                            inst_seq = inst_seq.wrapping_add(1);
                         } else {
                             if ctx.optimize_skeleton_inst(inst) {
                                 cursor.remove_inst_and_step_back();
                             } else {
+                                self.inst_ordering_info_map[inst] = OrderingInfo {
+                                    last_use_count: u8::MIN,
+                                    critical_path: u16::MIN,
+                                    seq: inst_seq,
+                                    before: None,
+                                };
+                                inst_seq = inst_seq.wrapping_add(1);
                                 self.skeleton_inst_order.push_back(inst);
                             }
                         }
