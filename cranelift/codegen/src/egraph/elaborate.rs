@@ -9,7 +9,6 @@ use crate::dominator_tree::DominatorTreePreorder;
 use crate::hash_map::Entry as HashEntry;
 use crate::inst_predicates::is_pure_for_egraph;
 use crate::ir::{Block, Function, Inst, Value, ValueDef};
-use crate::isa::riscv64::inst::writable_a2;
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
@@ -640,19 +639,19 @@ impl<'a> Elaborator<'a> {
                     // yet, create one.
                     // FIXME: rematerializing
                     let mut remat_arg = false;
-                    /*for arg_value in arg_values.iter_mut() {
-                        if Self::maybe_remat_arg(
-                            &self.remat_values,
-                            &mut self.func,
-                            &mut self.remat_copies,
-                            insert_block,
-                            before,
-                            arg_value,
-                            &mut self.stats,
-                        ) {
-                            remat_arg = true;
-                        }
-                    }*/
+                    // for arg_value in arg_values.iter_mut() {
+                    //     if Self::maybe_remat_arg(
+                    //         &self.remat_values,
+                    //         &mut self.func,
+                    //         &mut self.remat_copies,
+                    //         insert_block,
+                    //         before,
+                    //         arg_value,
+                    //         &mut self.stats,
+                    //     ) {
+                    //         remat_arg = true;
+                    //     }
+                    // }
 
                     // Now we need to place `inst` at the computed
                     // location (just before `before`). Note that
@@ -725,8 +724,6 @@ impl<'a> Elaborator<'a> {
                         inst
                     };
 
-                    // This should hold since skeleton instructions are removed
-                    // after `empty_block_and_optimize()` is called.
                     assert!(
                         is_pure_for_egraph(self.func, inst),
                         "something has gone very wrong if we are elaborating effectful \
@@ -801,18 +798,17 @@ impl<'a> Elaborator<'a> {
                 // Elaborate the arg, placing any newly-inserted insts
                 // before `before`. Get the updated value, which may
                 // be different than the original.
-                let mut new_arg = self.elaborate_eclass_use(*arg, before);
+                let new_arg = self.elaborate_eclass_use(*arg, before);
                 // FIXME: rematerializing
-                /*    Self::maybe_remat_arg(
-                                    &self.remat_values,
-                                    &mut self.func,
-                                    &mut self.remat_copies,
-                                    block,
-                                    inst,
-                                    &mut new_arg,
-                                    &mut self.stats,
-                                );
-                */
+                // Self::maybe_remat_arg(
+                //     &self.remat_values,
+                //     &mut self.func,
+                //     &mut self.remat_copies,
+                //     block,
+                //     inst,
+                //     &mut new_arg,
+                //     &mut self.stats,
+                // );
                 trace!("   -> rewrote arg to {:?}", new_arg);
                 *arg = new_arg.value;
             }
@@ -855,22 +851,30 @@ impl<'a> Elaborator<'a> {
     /// It also initializes the ready queue with all instructions that have 0
     /// dependencies after the pass.
     fn compute_ddg_and_value_uses(&mut self, block: Block) {
-        let mut next_inst = self.func.layout.last_inst(block);
-        let mut inst_queue: VecDeque<Inst> = VecDeque::new();
-        let mut visited_arg: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
         assert_eq!(self.func.layout.block_insts(block).count(), 1);
+        let mut next_inst = self.func.layout.last_inst(block);
+        let block_terminator = next_inst.unwrap();
+        let mut inst_queue: VecDeque<Inst> = VecDeque::new();
+
+        let mut skeleton_already_inserted = false;
+
         while let Some(inst) = next_inst {
+            let mut visited_arg: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
             for arg in self.func.dfg.inst_values(inst) {
+                // Skip already visited arguments in case the instruction uses
+                // the same argument value multiple times.
+                // FIXME: check if this is necessary, and where it should go
                 // TODO: there probably exists a less expensive way to get unique args.
-                // Skip already visited arguments in case the instruction used a
-                // value multiple times.
                 if visited_arg[arg] == true {
                     continue;
                 }
                 visited_arg[arg] = true;
 
                 // Add the instruction to the value_uses map of its arguments.
-                if !self.value_uses[arg].iter().any(|&inst| inst == inst) {
+                if !self.value_uses[arg]
+                    .iter()
+                    .any(|&user_inst| user_inst == inst)
+                {
                     self.value_uses[arg].push(inst);
                 }
 
@@ -896,11 +900,21 @@ impl<'a> Elaborator<'a> {
 
             next_inst = inst_queue.pop_front();
             // Initialize the ready queue with all instructions that have 0 dependencies.
-            if self.dependencies_count[inst] == 0 {
-                self.ready_queue
-                    .push(inst, self.inst_ordering_info_map[inst]);
+            // FIXME: check special cases with skeleton instructions here
+            if self.dependencies_count[inst] == 0 && inst != block_terminator {
+                if is_pure_for_egraph(self.func, inst) {
+                    self.ready_queue
+                        .push(inst, self.inst_ordering_info_map[inst]);
+                } else if Some(&inst) == self.skeleton_inst_order.front()
+                    && !skeleton_already_inserted
+                {
+                    self.ready_queue
+                        .push(inst, self.inst_ordering_info_map[inst]);
+                    skeleton_already_inserted = true;
+                }
             }
         }
+        // FIXME: we get lots of panicks due to empty ready queues...
         assert!(
             !self.ready_queue.is_empty(),
             "computeDDG: found empty ready_queue"
@@ -923,20 +937,26 @@ impl<'a> Elaborator<'a> {
         // Take the block terminator. It should be the only instruction left inside
         // the block.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
-        while let Some(inst) = self.ready_queue.pop() {
+        assert!(self.func.dfg.insts[block_terminator]
+            .opcode()
+            .is_terminator());
+        while let Some(inst_to_insert) = self.ready_queue.pop() {
             // Insert the instruction to the layout.
-            if let Some(before) = self.inst_ordering_info_map[inst].before {
-                assert!(self.func.layout.inst_block(inst) == None);
-                self.func.layout.insert_inst(inst, before);
+            assert!(self.func.layout.inst_block(inst_to_insert) == None);
+            if let Some(before) = self.inst_ordering_info_map[inst_to_insert].before {
+                self.func.layout.insert_inst(inst_to_insert, before);
             } else {
-                assert!(self.func.layout.inst_block(inst) != Some(block));
-                self.func.layout.insert_inst(inst, block_terminator);
+                self.func
+                    .layout
+                    .insert_inst(inst_to_insert, block_terminator);
             }
 
+            let inserted_inst = inst_to_insert;
+
             // Update the last-use-counts of instructions.
-            for arg in self.func.dfg.inst_values(inst) {
+            for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
-                self.value_uses[arg].retain(|&mut arg_user| arg_user != inst);
+                self.value_uses[arg].retain(|&mut arg_user| arg_user != inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_uses[arg].len() == 1 {
@@ -947,31 +967,57 @@ impl<'a> Elaborator<'a> {
                 }
             }
 
-            // Update the dependency counts for instructions and append ready instructions
-            // to the ready queue.
-            for result in self.func.dfg.inst_results(inst).iter().cloned() {
-                // For each result, find all instructions that use it and decrement their
-                // dependency count.
-                for user in self.value_uses[result].iter().cloned() {
-                    self.dependencies_count[user] -= 1;
-                    // If the instruction has no dependencies left, push it in the ready queue.
-                    if self.dependencies_count[user] == 0 {
-                        self.ready_queue
-                            .push(user, self.inst_ordering_info_map[user]);
-                        // If the instruction was a skeleton instruction, decrement the dependency
-                        // count of the next skeleton instruction. If the next skeleton instruction
-                        // reaches zero dependencies too, put it in the ready queue too.
-                        if self.skeleton_inst_order.pop_front() == Some(user) {
-                            if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
-                                let next_skeleton_inst = next_skeleton_inst.clone();
-                                self.dependencies_count[next_skeleton_inst] -= 1;
-                                if self.dependencies_count[next_skeleton_inst] == 0 {
-                                    self.ready_queue.push(
-                                        next_skeleton_inst,
-                                        self.inst_ordering_info_map[next_skeleton_inst],
-                                    );
-                                }
-                            }
+            let mut skeleton_already_inserted = false;
+
+            // If the instruction was a skeleton instruction, pop it from the
+            // `skeleton_inst_order` queue and decrement the dependency count
+            // of the next skeleton instruction (if it exists). If the next
+            // skeleton instruction reaches zero dependencies (and is not the
+            // block terminator), put it in the ready queue too, indicating that
+            // a skeleton instruction has just been inserted in it, using
+            // `skeleton_already_pushed`.
+            if self.skeleton_inst_order.front() == Some(&inserted_inst) {
+                self.skeleton_inst_order.pop_front();
+                if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
+                    let next_skeleton_inst = next_skeleton_inst.clone();
+                    self.dependencies_count[next_skeleton_inst] -= 1;
+                    if self.dependencies_count[next_skeleton_inst] == 0
+                        && next_skeleton_inst != block_terminator
+                    {
+                        self.ready_queue.push(
+                            next_skeleton_inst,
+                            self.inst_ordering_info_map[next_skeleton_inst],
+                        );
+                        skeleton_already_inserted = true;
+                    }
+                }
+            }
+
+            // Update the dependency counts for all the users of the results
+            // generated by the instruction that was just inserted into the
+            // layout. If any instruction ends up with zero dependencies, try to
+            // insert it to the ready queue.
+            for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
+                // For each result, find all instructions that use it and
+                // decrement their dependency count.
+                // FIXME: check if value_uses vectors can have duplicate entries
+                for user_inst in self.value_uses[result].iter().cloned() {
+                    self.dependencies_count[user_inst] -= 1;
+                    // If the instruction has no dependencies left and is not
+                    // the block terminator, try to insert it to the ready
+                    // queue. The insertion will succeed only if the instruction
+                    // is pure, or in case it's in the block's skeleton, if it
+                    // is the next skeleton in order and hasn't already been
+                    // inserted.
+                    if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator {
+                        if is_pure_for_egraph(self.func, user_inst) {
+                            self.ready_queue
+                                .push(user_inst, self.inst_ordering_info_map[user_inst]);
+                        } else if !skeleton_already_inserted
+                            && Some(&user_inst) == self.skeleton_inst_order.front()
+                        {
+                            self.ready_queue
+                                .push(user_inst, self.inst_ordering_info_map[user_inst]);
                         }
                     }
                 }
