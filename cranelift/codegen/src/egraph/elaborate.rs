@@ -9,9 +9,11 @@ use crate::dominator_tree::DominatorTreePreorder;
 use crate::hash_map::Entry as HashEntry;
 use crate::inst_predicates::is_pure_for_egraph;
 use crate::ir::{Block, Function, Inst, Value, ValueDef};
+use crate::isa::riscv64::inst::writable_a2;
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
+use alloc::rc::Weak;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -636,8 +638,9 @@ impl<'a> Elaborator<'a> {
                     // values. If so, and if we don't have a copy of
                     // the rematerializing instruction for this block
                     // yet, create one.
+                    // FIXME: rematerializing
                     let mut remat_arg = false;
-                    for arg_value in arg_values.iter_mut() {
+                    /*for arg_value in arg_values.iter_mut() {
                         if Self::maybe_remat_arg(
                             &self.remat_values,
                             &mut self.func,
@@ -649,7 +652,7 @@ impl<'a> Elaborator<'a> {
                         ) {
                             remat_arg = true;
                         }
-                    }
+                    }*/
 
                     // Now we need to place `inst` at the computed
                     // location (just before `before`). Note that
@@ -792,21 +795,24 @@ impl<'a> Elaborator<'a> {
 
             elab_values.extend(self.func.dfg.inst_values(inst));
             // NOTE: the order of the arguments should not define the layout.
+
             for arg in elab_values.iter_mut() {
                 trace!(" -> arg {}", *arg);
                 // Elaborate the arg, placing any newly-inserted insts
                 // before `before`. Get the updated value, which may
                 // be different than the original.
                 let mut new_arg = self.elaborate_eclass_use(*arg, before);
-                Self::maybe_remat_arg(
-                    &self.remat_values,
-                    &mut self.func,
-                    &mut self.remat_copies,
-                    block,
-                    inst,
-                    &mut new_arg,
-                    &mut self.stats,
-                );
+                // FIXME: rematerializing
+                /*    Self::maybe_remat_arg(
+                                    &self.remat_values,
+                                    &mut self.func,
+                                    &mut self.remat_copies,
+                                    block,
+                                    inst,
+                                    &mut new_arg,
+                                    &mut self.stats,
+                                );
+                */
                 trace!("   -> rewrote arg to {:?}", new_arg);
                 *arg = new_arg.value;
             }
@@ -830,6 +836,10 @@ impl<'a> Elaborator<'a> {
             }
 
             next_inst = self.func.layout.next_inst(inst);
+            // Remove all the skeleton instructions except the last one.
+            if next_inst.is_some() {
+                self.func.layout.remove_inst(inst);
+            }
         }
 
         // The first skeleton instruction has no dependency due to previous
@@ -848,7 +858,7 @@ impl<'a> Elaborator<'a> {
         let mut next_inst = self.func.layout.last_inst(block);
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
         let mut visited_arg: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
-
+        assert_eq!(self.func.layout.block_insts(block).count(), 1);
         while let Some(inst) = next_inst {
             for arg in self.func.dfg.inst_values(inst) {
                 // TODO: there probably exists a less expensive way to get unique args.
@@ -891,17 +901,36 @@ impl<'a> Elaborator<'a> {
                     .push(inst, self.inst_ordering_info_map[inst]);
             }
         }
+        assert!(
+            !self.ready_queue.is_empty(),
+            "computeDDG: found empty ready_queue"
+        );
     }
 
     /// Put instructions back to the function's layout using the LUC and CP
     /// heuristics.
     fn schedule_insts(&mut self, block: Block) {
+        assert!(
+            !self.ready_queue.is_empty(),
+            "schedule_insts: found empty ready_queue"
+        );
+        assert_eq!(self.func.layout.block_insts(block).count(), 1);
+        assert_eq!(
+            is_pure_for_egraph(self.func, self.func.layout.first_inst(block).unwrap()),
+            false,
+            "Found it"
+        );
+        // Take the block terminator. It should be the only instruction left inside
+        // the block.
+        let block_terminator = self.func.layout.first_inst(block).unwrap();
         while let Some(inst) = self.ready_queue.pop() {
             // Insert the instruction to the layout.
             if let Some(before) = self.inst_ordering_info_map[inst].before {
+                assert!(self.func.layout.inst_block(inst) == None);
                 self.func.layout.insert_inst(inst, before);
             } else {
-                self.func.layout.append_inst(inst, block);
+                assert!(self.func.layout.inst_block(inst) != Some(block));
+                self.func.layout.insert_inst(inst, block_terminator);
             }
 
             // Update the last-use-counts of instructions.
