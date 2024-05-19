@@ -856,20 +856,13 @@ impl<'a> Elaborator<'a> {
         let block_terminator = next_inst.unwrap();
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
 
+        // A map to add the dependencies for every value only once
+        let mut dependencies_added: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
+
         let mut skeleton_already_inserted = false;
 
         while let Some(inst) = next_inst {
-            let mut visited_arg: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
             for arg in self.func.dfg.inst_values(inst) {
-                // Skip already visited arguments in case the instruction uses
-                // the same argument value multiple times.
-                // FIXME: check if this is necessary, and where it should go
-                // TODO: there probably exists a less expensive way to get unique args.
-                if visited_arg[arg] == true {
-                    continue;
-                }
-                visited_arg[arg] = true;
-
                 // Add the instruction to the value_uses map of its arguments.
                 if !self.value_uses[arg]
                     .iter()
@@ -889,7 +882,14 @@ impl<'a> Elaborator<'a> {
                     }
 
                     // Construct the `dependencies_count` map.
-                    self.dependencies_count[inst] += 1;
+                    // Skip already visited arguments in case the instruction uses
+                    // the same argument value multiple times.
+                    // TODO: check if this is correct
+                    // TODO: there probably exists a less expensive way to get unique args.
+                    if dependencies_added[arg] {
+                        self.dependencies_count[inst] += 1;
+                        dependencies_added[arg] = true;
+                    }
 
                     // Push the arguments of the instruction to the instruction
                     // queue for the breadth-first traversal of the data
