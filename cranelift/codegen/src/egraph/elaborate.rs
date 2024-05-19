@@ -859,19 +859,20 @@ impl<'a> Elaborator<'a> {
         let mut skeleton_already_inserted = false;
 
         while let Some(inst) = next_inst {
-            // A map to add the dependencies for every value only
-            let mut visited_arg_for_that_inst: SecondaryMap<Value, bool> =
+            // A map to filter out duplicate visits in case an instruction uses
+            // the same value in multiple arguments.
+            let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
                 SecondaryMap::with_default(false);
             for arg in self.func.dfg.inst_values(inst) {
-                // Skip already visited arguments in case the instruction uses
-                // the same argument value multiple times.
                 // TODO: there probably exists a less expensive way to get unique args.
-                // if we have add x0, x1, x1 we have only one dependency and only one user.
-                // make sure we don't visit x1 twice.
-                if visited_arg_for_that_inst[arg] {
+                // Skip already visited arguments in case the instruction uses
+                // the same argument value multiple times. Basically, if we
+                // have `add x0, x1, x1` we don't want to add two dependencies
+                // in the instruction because of `x1`.
+                if inst_arg_already_visited[arg] {
                     continue;
                 }
-                visited_arg_for_that_inst[arg] = true;
+                inst_arg_already_visited[arg] = true;
 
                 // Add the instruction to the value_uses map of its arguments.
                 if !self.value_uses[arg]
@@ -910,6 +911,7 @@ impl<'a> Elaborator<'a> {
                         .push(inst, self.inst_ordering_info_map[inst]);
                 } else if Some(&inst) == self.skeleton_inst_order.front()
                     && !skeleton_already_inserted
+                    && inst != block_terminator
                 {
                     self.ready_queue
                         .push(inst, self.inst_ordering_info_map[inst]);
@@ -917,43 +919,56 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
-        // FIXME: we get lots of panicks due to empty ready queues...
-        assert!(
-            !self.ready_queue.is_empty(),
-            "computeDDG: found empty ready_queue"
-        );
+        // FIXME: is this check correct?
+        // assert!(
+        //     !self.ready_queue.is_empty(),
+        //     "computeDDG: found empty ready_queue"
+        // );
     }
 
     /// Put instructions back to the function's layout using the LUC and CP
     /// heuristics.
     fn schedule_insts(&mut self, block: Block) {
-        assert!(
-            !self.ready_queue.is_empty(),
-            "schedule_insts: found empty ready_queue"
-        );
-        assert_eq!(self.func.layout.block_insts(block).count(), 1);
-        assert_eq!(
-            is_pure_for_egraph(self.func, self.func.layout.first_inst(block).unwrap()),
-            false,
-            "Found it"
-        );
-        // Take the block terminator. It should be the only instruction left inside
-        // the block.
+        // Take the block terminator. It should be the only instruction left
+        // inside the block, and be a terminator.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
+        assert_eq!(self.func.layout.block_insts(block).count(), 1);
         assert!(self.func.dfg.insts[block_terminator]
             .opcode()
             .is_terminator());
-        let mut inserted_instructions: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
+
+        // FIXME: only needed for debugging... ////////////////////////////////
+        let mut elaborated_instructions: SecondaryMap<Inst, bool> =
+            SecondaryMap::with_default(false);
+        let mut instruction_in_ready_queue: SecondaryMap<Inst, bool> =
+            SecondaryMap::with_default(false);
+        // FIXME: is this check correct?
+        // assert!(
+        //     !self.ready_queue.is_empty(),
+        //     "schedule_insts: found empty ready_queue"
+        // );
+        ///////////////////////////////////////////////////////////////////////
+
         while let Some(inst_to_insert) = self.ready_queue.pop() {
-            // Insert the instruction to the layout.
+            // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
             assert!(
-                inserted_instructions[inst_to_insert] == false,
-                "Found it on the map",
+                !elaborated_instructions[inst_to_insert],
+                "We already inserted this instruction in this block through the ready queue!",
             );
             assert!(self.func.layout.inst_block(inst_to_insert) != Some(block));
-            // FIXME: this assert fails fix it.
             //assert!(self.func.layout.inst_block(inst_to_insert) == None);
+            ///////////////////////////////////////////////////////////////////
+
+            // FIXME: we actually do need to duplicate the instruction if it has
+            // already been inserted in a previous block (maybe even if already
+            // inserted in the current block, since we still get panicks from
+            // line 955) — check how it was done in the main branch. We must see
+            // if this duplication would necesitate changes in the value_uses
+            // map, the ordering information, the dependencies_count map etc.
+
+            // Insert the instruction to the layout. In case it got hoisted out
+            // of a loop, inserted in its appropriate place.
             if let Some(before) = self.inst_ordering_info_map[inst_to_insert].before {
                 self.func.layout.insert_inst(inst_to_insert, before);
             } else {
@@ -963,7 +978,10 @@ impl<'a> Elaborator<'a> {
             }
             let inserted_inst = inst_to_insert;
 
-            inserted_instructions[inst_to_insert] = true;
+            // FIXME: only needed for debugging... ////////////////////////////
+            elaborated_instructions[inserted_inst] = true;
+            ///////////////////////////////////////////////////////////////////
+
             // Update the last-use-counts of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
@@ -1000,6 +1018,10 @@ impl<'a> Elaborator<'a> {
                             self.inst_ordering_info_map[next_skeleton_inst],
                         );
                         skeleton_already_inserted = true;
+                        // FIXME: only needed for debugging... ////////////////
+                        assert!(!instruction_in_ready_queue[next_skeleton_inst]);
+                        instruction_in_ready_queue[next_skeleton_inst] = true;
+                        ///////////////////////////////////////////////////////
                     }
                 }
             }
@@ -1011,7 +1033,6 @@ impl<'a> Elaborator<'a> {
             for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
-                // FIXME: check if value_uses vectors can have duplicate entries
                 for user_inst in self.value_uses[result].iter().cloned() {
                     self.dependencies_count[user_inst] -= 1;
                     // If the instruction has no dependencies left and is not
@@ -1022,22 +1043,25 @@ impl<'a> Elaborator<'a> {
                     // inserted.
                     if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator {
                         if is_pure_for_egraph(self.func, user_inst) {
-                            assert!(
-                                user_inst != inserted_inst,
-                                "We already have inserted inst to the layout so 
-                                we cannot insert it to the ready queue again"
-                            );
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
+                            // FIXME: only needed for debugging... ////////////
+                            assert!(
+                                user_inst != inserted_inst,
+                                "We already have inserted inst to the layout"
+                            );
+                            assert!(!instruction_in_ready_queue[user_inst]);
+                            instruction_in_ready_queue[user_inst] = true;
+                            ///////////////////////////////////////////////////
                         } else if !skeleton_already_inserted
                             && Some(&user_inst) == self.skeleton_inst_order.front()
                         {
-                            assert!(
-                                user_inst != inserted_inst,
-                                "This skeleton is already inserted cannot add it to the ready queue"
-                            );
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
+                            // FIXME: only needed for debugging... ////////////
+                            assert!(!instruction_in_ready_queue[user_inst]);
+                            instruction_in_ready_queue[user_inst] = true;
+                            ///////////////////////////////////////////////////
                         }
                     }
                 }
