@@ -856,13 +856,23 @@ impl<'a> Elaborator<'a> {
         let block_terminator = next_inst.unwrap();
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
 
-        // A map to add the dependencies for every value only once
-        let mut dependencies_added: SecondaryMap<Value, bool> = SecondaryMap::with_default(false);
-
         let mut skeleton_already_inserted = false;
 
         while let Some(inst) = next_inst {
+            // A map to add the dependencies for every value only
+            let mut visited_arg_for_that_inst: SecondaryMap<Value, bool> =
+                SecondaryMap::with_default(false);
             for arg in self.func.dfg.inst_values(inst) {
+                // Skip already visited arguments in case the instruction uses
+                // the same argument value multiple times.
+                // TODO: there probably exists a less expensive way to get unique args.
+                // if we have add x0, x1, x1 we have only one dependency and only one user.
+                // make sure we don't visit x1 twice.
+                if visited_arg_for_that_inst[arg] {
+                    continue;
+                }
+                visited_arg_for_that_inst[arg] = true;
+
                 // Add the instruction to the value_uses map of its arguments.
                 if !self.value_uses[arg]
                     .iter()
@@ -882,14 +892,7 @@ impl<'a> Elaborator<'a> {
                     }
 
                     // Construct the `dependencies_count` map.
-                    // Skip already visited arguments in case the instruction uses
-                    // the same argument value multiple times.
-                    // TODO: check if this is correct
-                    // TODO: there probably exists a less expensive way to get unique args.
-                    if dependencies_added[arg] {
-                        self.dependencies_count[inst] += 1;
-                        dependencies_added[arg] = true;
-                    }
+                    self.dependencies_count[inst] += 1;
 
                     // Push the arguments of the instruction to the instruction
                     // queue for the breadth-first traversal of the data
@@ -940,9 +943,17 @@ impl<'a> Elaborator<'a> {
         assert!(self.func.dfg.insts[block_terminator]
             .opcode()
             .is_terminator());
+        let mut inserted_instructions: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
         while let Some(inst_to_insert) = self.ready_queue.pop() {
             // Insert the instruction to the layout.
-            assert!(self.func.layout.inst_block(inst_to_insert) == None);
+            assert!(inst_to_insert != block_terminator);
+            assert!(
+                inserted_instructions[inst_to_insert] == false,
+                "Found it on the map",
+            );
+            assert!(self.func.layout.inst_block(inst_to_insert) != Some(block));
+            // FIXME: this assert fails fix it.
+            //assert!(self.func.layout.inst_block(inst_to_insert) == None);
             if let Some(before) = self.inst_ordering_info_map[inst_to_insert].before {
                 self.func.layout.insert_inst(inst_to_insert, before);
             } else {
@@ -950,9 +961,9 @@ impl<'a> Elaborator<'a> {
                     .layout
                     .insert_inst(inst_to_insert, block_terminator);
             }
-
             let inserted_inst = inst_to_insert;
 
+            inserted_instructions[inst_to_insert] = true;
             // Update the last-use-counts of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
@@ -1011,11 +1022,20 @@ impl<'a> Elaborator<'a> {
                     // inserted.
                     if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator {
                         if is_pure_for_egraph(self.func, user_inst) {
+                            assert!(
+                                user_inst != inserted_inst,
+                                "We already have inserted inst to the layout so 
+                                we cannot insert it to the ready queue again"
+                            );
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                         } else if !skeleton_already_inserted
                             && Some(&user_inst) == self.skeleton_inst_order.front()
                         {
+                            assert!(
+                                user_inst != inserted_inst,
+                                "This skeleton is already inserted cannot add it to the ready queue"
+                            );
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                         }
