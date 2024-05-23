@@ -1000,7 +1000,7 @@ impl<'a> EgraphPass<'a> {
                             };
                             inst_seq = inst_seq.wrapping_add(1);
                         } else {
-                            if ctx.optimize_skeleton_inst(inst) {
+                            if ctx.optimize_skeleton_inst(inst, block) {
                                 cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
