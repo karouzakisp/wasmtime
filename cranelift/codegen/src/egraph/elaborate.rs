@@ -199,7 +199,8 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    fn start_block(&mut self, idom: Option<Block>, block: Block) {
+    // NOTE: this is unecessary until we re-enable the LICM optimization
+    fn _start_block(&mut self, idom: Option<Block>, block: Block) {
         trace!(
             "start_block: block {:?} with idom {:?} at loop depth {:?} scope depth {}",
             block,
@@ -386,29 +387,11 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    /// Elaborate use of an eclass, inserting any needed new
-    /// instructions before the given inst `before`. Should only be
-    /// given values corresponding to results of instructions or
-    /// blockparams.
-    fn elaborate_eclass_use(&mut self, value: Value, before: Inst) -> ElaboratedValue {
-        debug_assert_ne!(value, Value::reserved_value());
-
-        // Kick off the process by requesting this result
-        // value.
-        self.elab_stack
-            .push(ElabStackEntry::Start { value, before });
-
-        // Now run the explicit-stack recursion until we reach
-        // the root.
-        self.process_elab_stack();
-        debug_assert_eq!(self.elab_result_stack.len(), 1);
-        self.elab_result_stack.pop().unwrap()
-    }
-
+    // TODO: re-enable when everything else is functioning
     /// Possibly rematerialize the instruction producing the value in
     /// `arg` and rewrite `arg` to refer to it, if needed. Returns
     /// `true` if a rewrite occurred.
-    fn maybe_remat_arg(
+    fn _maybe_remat_arg(
         remat_values: &FxHashSet<Value>,
         func: &mut Function,
         remat_copies: &mut FxHashMap<(Block, Value), Value>,
@@ -441,407 +424,6 @@ impl<'a> Elaborator<'a> {
             true
         } else {
             false
-        }
-    }
-
-    fn process_elab_stack(&mut self) {
-        while let Some(entry) = self.elab_stack.pop() {
-            match entry {
-                ElabStackEntry::Start { value, before } => {
-                    debug_assert!(self.func.dfg.value_is_real(value));
-
-                    self.stats.elaborate_visit_node += 1;
-
-                    // Get the best option; we use `value` (latest
-                    // value) here so we have a full view of the
-                    // eclass.
-                    trace!("looking up best value for {}", value);
-                    let BestEntry(_, best_value) = self.value_to_best_value[value];
-                    trace!("elaborate: value {} -> best {}", value, best_value);
-                    debug_assert_ne!(best_value, Value::reserved_value());
-
-                    if let Some(elab_val) = self.value_to_elaborated_value.get(&best_value) {
-                        // Value is available; use it.
-                        trace!("elaborate: value {} -> {:?}", value, elab_val);
-                        self.stats.elaborate_memoize_hit += 1;
-                        self.elab_result_stack.push(*elab_val);
-                        continue;
-                    }
-
-                    self.stats.elaborate_memoize_miss += 1;
-
-                    // Now resolve the value to its definition to see
-                    // how we can compute it.
-                    let (inst, result_idx) = match self.func.dfg.value_def(best_value) {
-                        ValueDef::Result(inst, result_idx) => {
-                            trace!(
-                                " -> value {} is result {} of {}",
-                                best_value,
-                                result_idx,
-                                inst
-                            );
-                            (inst, result_idx)
-                        }
-                        ValueDef::Param(in_block, _) => {
-                            // We don't need to do anything to compute
-                            // this value; just push its result on the
-                            // result stack (blockparams are already
-                            // available).
-                            trace!(" -> value {} is a blockparam", best_value);
-                            self.elab_result_stack.push(ElaboratedValue {
-                                in_block,
-                                value: best_value,
-                            });
-                            continue;
-                        }
-                        ValueDef::Union(_, _) => {
-                            panic!("Should never have a Union value as the best value");
-                        }
-                    };
-
-                    trace!(
-                        " -> result {} of inst {:?}",
-                        result_idx,
-                        self.func.dfg.insts[inst]
-                    );
-
-                    // We're going to need to use this instruction
-                    // result, placing the instruction into the
-                    // layout. First, enqueue all args to be
-                    // elaborated. Push state to receive the results
-                    // and later elab this inst.
-                    let num_args = self.func.dfg.inst_values(inst).count();
-                    self.elab_stack.push(ElabStackEntry::PendingInst {
-                        inst,
-                        result_idx,
-                        num_args,
-                        before,
-                    });
-
-                    // Push args in reverse order so we process the
-                    // first arg first.
-                    // NOTE: maybe we should change the order of the arguments
-                    // here, otherwise `.rev()` might not matter at all.
-                    for arg in self.func.dfg.inst_values(inst).rev() {
-                        debug_assert_ne!(arg, Value::reserved_value());
-                        self.elab_stack
-                            .push(ElabStackEntry::Start { value: arg, before });
-                    }
-                }
-
-                ElabStackEntry::PendingInst {
-                    inst,
-                    result_idx,
-                    num_args,
-                    before,
-                } => {
-                    trace!(
-                        "PendingInst: {} result {} args {} before {}",
-                        inst,
-                        result_idx,
-                        num_args,
-                        before
-                    );
-
-                    // We should have all args resolved at this
-                    // point. Grab them and drain them out, removing
-                    // them.
-                    let arg_idx = self.elab_result_stack.len() - num_args;
-                    let arg_values = &mut self.elab_result_stack[arg_idx..];
-
-                    // Compute max loop depth.
-                    //
-                    // Note that if there are no arguments then this instruction
-                    // is allowed to get hoisted up one loop. This is not
-                    // usually used since no-argument values are things like
-                    // constants which are typically rematerialized, but for the
-                    // `vconst` instruction 128-bit constants aren't as easily
-                    // rematerialized. They're hoisted out of inner loops but
-                    // not to the function entry which may run the risk of
-                    // placing too much register pressure on the entire
-                    // function. This is modeled with the `.saturating_sub(1)`
-                    // as the default if there's otherwise no maximum.
-                    let loop_hoist_level = arg_values
-                        .iter()
-                        .map(|&value| {
-                            // Find the outermost loop level at which
-                            // the value's defining block *is not* a
-                            // member. This is the loop-nest level
-                            // whose hoist-block we hoist to.
-                            let hoist_level = self
-                                .loop_stack
-                                .iter()
-                                .position(|loop_entry| {
-                                    !self.loop_analysis.is_in_loop(value.in_block, loop_entry.lp)
-                                })
-                                .unwrap_or(self.loop_stack.len());
-                            trace!(
-                                " -> arg: elab_value {:?} hoist level {:?}",
-                                value,
-                                hoist_level
-                            );
-                            hoist_level
-                        })
-                        .max()
-                        .unwrap_or(self.loop_stack.len().saturating_sub(1));
-                    trace!(
-                        " -> loop hoist level: {:?}; cur loop depth: {:?}, loop_stack: {:?}",
-                        loop_hoist_level,
-                        self.loop_stack.len(),
-                        self.loop_stack,
-                    );
-
-                    // We know that this is a pure inst, because
-                    // non-pure roots have already been placed in the
-                    // value-to-elab'd-value map, so they will not
-                    // reach this stage of processing.
-                    //
-                    // We now must determine the location at which we
-                    // place the instruction. This is the current
-                    // block *unless* we hoist above a loop when all
-                    // args are loop-invariant (and this op is pure).
-                    let (scope_depth, before, insert_block) =
-                        if loop_hoist_level == self.loop_stack.len() {
-                            // Depends on some value at the current
-                            // loop depth, or remat forces it here:
-                            // place it at the current location.
-                            self.inst_ordering_info_map[inst].before = None;
-                            (
-                                self.value_to_elaborated_value.depth(),
-                                before,
-                                self.func.layout.inst_block(before).unwrap(),
-                            )
-                        } else {
-                            // Does not depend on any args at current
-                            // loop depth: hoist out of loop.
-                            self.stats.elaborate_licm_hoist += 1;
-                            let data = &self.loop_stack[loop_hoist_level];
-                            // `data.hoist_block` should dominate `before`'s block.
-                            let before_block = self.func.layout.inst_block(before).unwrap();
-                            debug_assert!(self.domtree.dominates(data.hoist_block, before_block));
-                            // Determine the instruction at which we
-                            // insert in `data.hoist_block`.
-                            let before = self.func.layout.last_inst(data.hoist_block).unwrap();
-                            self.inst_ordering_info_map[inst].before = Some(before);
-                            (data.scope_depth as usize, before, data.hoist_block)
-                        };
-
-                    trace!(
-                        " -> decided to place: before {} insert_block {}",
-                        before,
-                        insert_block
-                    );
-
-                    // Now that we have the location for the
-                    // instruction, check if any of its args are remat
-                    // values. If so, and if we don't have a copy of
-                    // the rematerializing instruction for this block
-                    // yet, create one.
-                    // FIXME: rematerializing
-                    let mut remat_arg = false;
-                    // for arg_value in arg_values.iter_mut() {
-                    //     if Self::maybe_remat_arg(
-                    //         &self.remat_values,
-                    //         &mut self.func,
-                    //         &mut self.remat_copies,
-                    //         insert_block,
-                    //         before,
-                    //         arg_value,
-                    //         &mut self.stats,
-                    //     ) {
-                    //         remat_arg = true;
-                    //     }
-                    // }
-
-                    // Now we need to place `inst` at the computed
-                    // location (just before `before`). Note that
-                    // `inst` may already have been placed somewhere
-                    // else, because a pure node may be elaborated at
-                    // more than one place. In this case, we need to
-                    // duplicate the instruction (and return the
-                    // `Value`s for that duplicated instance instead).
-                    //
-                    // Also clone if we rematerialized, because we
-                    // don't want to rewrite the args in the original
-                    // copy.
-                    trace!("need inst {} before {}", inst, before);
-                    let inst = if self.func.layout.inst_block(inst).is_some() || remat_arg {
-                        // Clone the inst!
-                        let new_inst = self.func.dfg.clone_inst(inst);
-                        trace!(
-                            " -> inst {} already has a location; cloned to {}",
-                            inst,
-                            new_inst
-                        );
-                        // Create mappings in the
-                        // value-to-elab'd-value map from original
-                        // results to cloned results.
-                        for (&result, &new_result) in self
-                            .func
-                            .dfg
-                            .inst_results(inst)
-                            .iter()
-                            .zip(self.func.dfg.inst_results(new_inst).iter())
-                        {
-                            let elab_value = ElaboratedValue {
-                                value: new_result,
-                                in_block: insert_block,
-                            };
-                            let best_result = self.value_to_best_value[result];
-                            self.value_to_elaborated_value.insert_if_absent_with_depth(
-                                best_result.1,
-                                elab_value,
-                                scope_depth,
-                            );
-
-                            self.value_to_best_value[new_result] = best_result;
-
-                            trace!(
-                                " -> cloned inst has new result {} for orig {}",
-                                new_result,
-                                result
-                            );
-                        }
-                        new_inst
-                    } else {
-                        trace!(" -> no location; using original inst");
-                        // Create identity mappings from result values
-                        // to themselves in this scope, since we're
-                        // using the original inst.
-                        for &result in self.func.dfg.inst_results(inst) {
-                            let elab_value = ElaboratedValue {
-                                value: result,
-                                in_block: insert_block,
-                            };
-                            let best_result = self.value_to_best_value[result];
-                            self.value_to_elaborated_value.insert_if_absent_with_depth(
-                                best_result.1,
-                                elab_value,
-                                scope_depth,
-                            );
-                            trace!(" -> inserting identity mapping for {}", result);
-                        }
-                        inst
-                    };
-
-                    assert!(
-                        is_pure_for_egraph(self.func, inst),
-                        "something has gone very wrong if we are elaborating effectful \
-                         instructions, they should have remained in the skeleton"
-                    );
-                    // NOTE: Here was the insertion point of instructions to the layout.
-
-                    // Update the inst's arguments.
-                    self.func
-                        .dfg
-                        .overwrite_inst_values(inst, arg_values.into_iter().map(|ev| ev.value));
-
-                    // Now that we've consumed the arg values, pop
-                    // them off the stack.
-                    self.elab_result_stack.truncate(arg_idx);
-
-                    // Push the requested result index of the
-                    // instruction onto the elab-results stack.
-                    self.elab_result_stack.push(ElaboratedValue {
-                        in_block: insert_block,
-                        value: self.func.dfg.inst_results(inst)[result_idx],
-                    });
-                }
-            }
-        }
-    }
-
-    fn elaborate_block(&mut self, elab_values: &mut Vec<Value>, idom: Option<Block>, block: Block) {
-        trace!("elaborate_block: block {}", block);
-        self.start_block(idom, block);
-
-        // TODO: probably rework documentation
-        // Iterate over the side-effecting skeleton using the linked
-        // list in Layout. We will insert instructions that are
-        // elaborated *before* `inst`, so we can always use its
-        // next-link to continue the iteration.
-        let first_inst = self.func.layout.first_inst(block);
-        let mut next_inst = first_inst;
-        let mut first_branch = None;
-
-        while let Some(inst) = next_inst {
-            trace!(
-                "elaborating inst {} with results {:?}",
-                inst,
-                self.func.dfg.inst_results(inst)
-            );
-
-            // The relative order of skeleton instructions must not change,
-            // since that would change program semantics. To achieve this, we
-            // manually fabricate dependencies among them using the dependencies
-            // count map. We basically add one dependency for each of the
-            // skeleton instructions with their preceding skeleton instruction.
-            self.dependencies_count[inst] += 1;
-
-            // Record the first branch we see in the block; all
-            // elaboration for args of *any* branch must be inserted
-            // before the *first* branch, because the branch group
-            // must remain contiguous at the end of the block.
-            if self.func.dfg.insts[inst].opcode().is_branch() && first_branch == None {
-                first_branch = Some(inst);
-            }
-
-            // Determine where elaboration inserts insts.
-            let before = first_branch.unwrap_or(inst);
-            trace!(" -> inserting before {}", before);
-
-            elab_values.extend(self.func.dfg.inst_values(inst));
-            // NOTE: the order of the arguments should not define the layout.
-
-            for arg in elab_values.iter_mut() {
-                trace!(" -> arg {}", *arg);
-                // Elaborate the arg, placing any newly-inserted insts
-                // before `before`. Get the updated value, which may
-                // be different than the original.
-                let new_arg = self.elaborate_eclass_use(*arg, before);
-                // FIXME: rematerializing
-                // Self::maybe_remat_arg(
-                //     &self.remat_values,
-                //     &mut self.func,
-                //     &mut self.remat_copies,
-                //     block,
-                //     inst,
-                //     &mut new_arg,
-                //     &mut self.stats,
-                // );
-                trace!("   -> rewrote arg to {:?}", new_arg);
-                *arg = new_arg.value;
-            }
-
-            self.func
-                .dfg
-                .overwrite_inst_values(inst, elab_values.drain(..));
-
-            // We need to put the results of this instruction in the
-            // map now.
-            for &result in self.func.dfg.inst_results(inst) {
-                trace!(" -> result {}", result);
-                let best_result = self.value_to_best_value[result];
-                self.value_to_elaborated_value.insert_if_absent(
-                    best_result.1,
-                    ElaboratedValue {
-                        in_block: block,
-                        value: result,
-                    },
-                );
-            }
-
-            next_inst = self.func.layout.next_inst(inst);
-            // Remove all the skeleton instructions except the last one.
-            if next_inst.is_some() {
-                self.func.layout.remove_inst(inst);
-            }
-        }
-
-        // The first skeleton instruction has no dependency due to previous
-        // skeleton instructions.
-        if let Some(first_inst) = first_inst {
-            self.dependencies_count[first_inst] -= 1;
         }
     }
 
@@ -937,6 +519,9 @@ impl<'a> Elaborator<'a> {
             .opcode()
             .is_terminator());
 
+        // NOTE: the ready queue can only be empty here if (and only if) the
+        // block ought to have just the block terminator inside it.
+
         // FIXME: only needed for debugging... ////////////////////////////////
         let mut elaborated_instructions: SecondaryMap<Inst, bool> =
             SecondaryMap::with_default(false);
@@ -957,7 +542,6 @@ impl<'a> Elaborator<'a> {
                 "We already inserted this instruction in this block through the ready queue!",
             );
             assert!(self.func.layout.inst_block(inst_to_insert) != Some(block));
-            //assert!(self.func.layout.inst_block(inst_to_insert) == None);
             ///////////////////////////////////////////////////////////////////
 
             // FIXME: we actually do need to duplicate the instruction if it has
@@ -1075,9 +659,11 @@ impl<'a> Elaborator<'a> {
             idom: None,
         });
 
+        // FIXME: we probably don't need this anymore, since elaboration now is
+        // done in def-use order (top to bottom in the ddg).
         // A temporary workspace for elaborate_block, allocated here to maximize the use of the
         // allocation.
-        let mut elab_values = Vec::new();
+        // let mut elab_values = Vec::new();
 
         while let Some(top) = self.block_stack.pop() {
             match top {
@@ -1085,7 +671,6 @@ impl<'a> Elaborator<'a> {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
 
-                    self.elaborate_block(&mut elab_values, idom, block);
                     self.compute_ddg_and_value_uses(block);
                     // FIXME: we probably need to reset ordering info for every block
                     self.schedule_insts(block);
