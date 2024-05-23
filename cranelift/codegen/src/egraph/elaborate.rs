@@ -673,6 +673,16 @@ impl<'a> Elaborator<'a> {
 
                     self.compute_ddg_and_value_uses(block);
                     // FIXME: we probably need to reset ordering info for every block
+                    //
+                    // Elaborate block pending operations decide where to place them
+                    // 1) When we use remat_args we must overwrite the inst_values
+                    // use dfg.overwrite_inst_values(inst, elab_values).
+                    // inst is a to be elaborated instruction and
+                    // elab_values are the the arguments the skeleton needs (they are elaborated
+                    // already).
+                    // 2) When we clone the instructions we must do the same as above.
+                    // This is Aspe's job :)!
+
                     self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
