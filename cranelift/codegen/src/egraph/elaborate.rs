@@ -12,7 +12,6 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
-use alloc::rc::Weak;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -89,6 +88,10 @@ pub(crate) struct Elaborator<'a> {
     ready_queue: RankPairingHeap<Inst, OrderingInfo>,
     /// Stats for various events during egraph processing, to help
     /// with optimization of this infrastructure.
+    //
+    // TODO: Check if the `elaborate_visit_node` field still makes sense. In
+    // general, check if the `Stats` fields need any changes after the
+    // heuristics scheduling implementation.
     stats: &'a mut Stats,
     /// Chaos-mode control-plane so we can test that we still get
     /// correct results when our heuristics make bad decisions.
@@ -427,6 +430,32 @@ impl<'a> Elaborator<'a> {
         }
     }
 
+    // Remove the skeleton instructions left inside the block, while also
+    // manufacturing the dependencies among them due to their original program
+    // order.
+    fn add_skeleton_dependencies(&mut self, block: Block) {
+        let first_inst = self.func.layout.first_inst(block);
+        let mut next_inst = first_inst;
+
+        while let Some(inst) = next_inst {
+            next_inst = self.func.layout.next_inst(inst);
+
+            // Create the dependencies among skeleton instructions.
+            self.dependencies_count[inst] += 1;
+
+            // Remove all the skeleton instructions except the last one.
+            if next_inst.is_some() {
+                self.func.layout.remove_inst(inst);
+            }
+        }
+
+        // The first skeleton instruction has no dependency since there are no
+        // previous skeleton instructions in the block.
+        if let Some(first_inst) = first_inst {
+            self.dependencies_count[first_inst] -= 1;
+        }
+    }
+
     /// Compute the critical path for all instructions in the given `block`, and
     /// construct the `value_uses` and the `dependencies_count` maps.
     ///
@@ -519,9 +548,6 @@ impl<'a> Elaborator<'a> {
             .opcode()
             .is_terminator());
 
-        // NOTE: the ready queue can only be empty here if (and only if) the
-        // block ought to have just the block terminator inside it.
-
         // FIXME: only needed for debugging... ////////////////////////////////
         let mut elaborated_instructions: SecondaryMap<Inst, bool> =
             SecondaryMap::with_default(false);
@@ -534,6 +560,10 @@ impl<'a> Elaborator<'a> {
         // );
         ///////////////////////////////////////////////////////////////////////
 
+        // NOTE: The ready queue can only be empty here if (and only if) the
+        // block ought to have just the block terminator inside it. Maybe
+        // formulate an analogous assertion.
+
         while let Some(inst_to_insert) = self.ready_queue.pop() {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
@@ -544,23 +574,122 @@ impl<'a> Elaborator<'a> {
             assert!(self.func.layout.inst_block(inst_to_insert) != Some(block));
             ///////////////////////////////////////////////////////////////////
 
-            // FIXME: we actually do need to duplicate the instruction if it has
-            // already been inserted in a previous block (maybe even if already
-            // inserted in the current block, since we still get panicks from
-            // line 955) — check how it was done in the main branch. We must see
-            // if this duplication would necesitate changes in the value_uses
-            // map, the ordering information, the dependencies_count map etc.
+            // TODO: In case it the instruction got optimized through LICM (got
+            // hoisted out of a loop), change its layout placement accordingly.
+            //
+            // NOTE: Remove the `before` field from `inst_ordering_info_map`
+            // since we are now going to compute it eagerly inside here.
+            let (scope_depth, before, insert_block) = (
+                self.value_to_elaborated_value.depth(),
+                block_terminator,
+                self.func.layout.inst_block(block_terminator).unwrap(),
+            );
 
-            // Insert the instruction to the layout. In case it got hoisted out
-            // of a loop, inserted in its appropriate place.
-            if let Some(before) = self.inst_ordering_info_map[inst_to_insert].before {
-                self.func.layout.insert_inst(inst_to_insert, before);
-            } else {
-                self.func
-                    .layout
-                    .insert_inst(inst_to_insert, block_terminator);
-            }
+            // TODO: Now that we have the location for the instruction, check
+            // if any of its args are remat values. If so, and if we don't have
+            // a copy of the rematerializing instruction for this block yet,
+            // create one.
+            let remat_arg = false;
+
+            // Now we need to place `inst` at the computed location (just
+            // before `before`). Note that `inst` may already have been
+            // placed somewhere else, because a pure node may be elaborated
+            // at more than one place. In this case, we need to duplicate the
+            // instruction.
+            //
+            // NOTE: We must see if this duplication will necesitate changes in
+            // the `value_uses` map, the ordering information, the
+            // `dependencies_count` map etc. It is possible that this
+            // duplication might move in the `compute_ddg_and_value_uses` pass!
+            trace!("need inst {} before {}", inst_to_insert, before);
+            let inst_to_insert =
+                if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
+                    // Clone the inst!
+                    let new_inst = self.func.dfg.clone_inst(inst_to_insert);
+                    trace!(
+                        " -> inst {} already has a location; cloned to {}",
+                        inst_to_insert,
+                        new_inst
+                    );
+                    // Create mappings in the value-to-elab'd-value map from
+                    // original results to cloned results.
+                    for (&result, &new_result) in self
+                        .func
+                        .dfg
+                        .inst_results(inst_to_insert)
+                        .iter()
+                        .zip(self.func.dfg.inst_results(new_inst).iter())
+                    {
+                        // NOTE: Aspe: it's not clear to me if the
+                        // `value_to_elaborated_value` map makes sense to be in
+                        // this pass in the first place. I believe we only used
+                        // it to memoize elaborated values, removing unecessary
+                        // "pending" instructions in the previous elaboration
+                        // stack machinery — isn't this similar to GVN?
+                        // With the ready queue inserting instructions, should
+                        // we be doing something similar here, should this be
+                        // integrated somehow in the
+                        // `compute_dgg_and_value_uses` pass, or is it now
+                        // entirely unecessary?
+                        let elab_value = ElaboratedValue {
+                            value: new_result,
+                            in_block: insert_block,
+                        };
+                        let best_result = self.value_to_best_value[result];
+                        self.value_to_elaborated_value.insert_if_absent_with_depth(
+                            best_result.1,
+                            elab_value,
+                            scope_depth,
+                        );
+
+                        // NOTE: Understand why this is correct...
+                        // Shouldn't `best_result` be `elab_value`?
+                        self.value_to_best_value[new_result] = best_result;
+
+                        trace!(
+                            " -> cloned inst has new result {} for orig {}",
+                            new_result,
+                            result
+                        );
+                    }
+                    new_inst
+                } else {
+                    trace!(" -> no location; using original inst");
+                    // Create identity mappings from result values to themselves
+                    // in this scope, since we're using the original inst.
+                    for &result in self.func.dfg.inst_results(inst_to_insert) {
+                        let elab_value = ElaboratedValue {
+                            value: result,
+                            in_block: insert_block,
+                        };
+                        let best_result = self.value_to_best_value[result];
+                        self.value_to_elaborated_value.insert_if_absent_with_depth(
+                            best_result.1,
+                            elab_value,
+                            scope_depth,
+                        );
+                        trace!(" -> inserting identity mapping for {}", result);
+                    }
+                    inst_to_insert
+                };
+
+            // Insert the instruction to the layout.
+            self.func
+                .layout
+                .insert_inst(inst_to_insert, block_terminator);
+
+            // The instruction is now inserted to the function layout.
             let inserted_inst = inst_to_insert;
+
+            // TODO: Update the inserted inst's arguments.
+            //
+            // NOTE: Aspe: it's not clear to me yet if we have to do this step.
+            // Where would we take the *now elaborated* `arg_values` from in our
+            // implementation? Will we need something analogous to the
+            // `elab_result_stack` used in the original implementation?
+            // Also, maybe here would be another place where changes to our
+            // `value_uses`, `dependencies_count` and `inst_ordering_info_map`
+            // maps are necessary.
 
             // FIXME: only needed for debugging... ////////////////////////////
             elaborated_instructions[inserted_inst] = true;
@@ -671,18 +800,9 @@ impl<'a> Elaborator<'a> {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
 
+                    self.add_skeleton_dependencies(block);
                     self.compute_ddg_and_value_uses(block);
-                    // FIXME: we probably need to reset ordering info for every block
-                    //
-                    // Elaborate block pending operations decide where to place them
-                    // 1) When we use remat_args we must overwrite the inst_values
-                    // use dfg.overwrite_inst_values(inst, elab_values).
-                    // inst is a to be elaborated instruction and
-                    // elab_values are the the arguments the skeleton needs (they are elaborated
-                    // already).
-                    // 2) When we clone the instructions we must do the same as above.
-                    // This is Aspe's job :)!
-
+                    // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
