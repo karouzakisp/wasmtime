@@ -571,9 +571,13 @@ impl<'a> Elaborator<'a> {
                 !elaborated_instructions[inst_to_insert],
                 "We already inserted this instruction in this block through the ready queue!",
             );
-            assert!(self.func.layout.inst_block(inst_to_insert) != Some(block));
+
             ///////////////////////////////////////////////////////////////////
 
+            // TODO: If all the new results of the instructions already exist we can
+            // eliminate the instruction and we skip the instruction to the layout.
+            // then update the dependencies_count if needed and the value uses map.
+            //
             // TODO: In case it the instruction got optimized through LICM (got
             // hoisted out of a loop), change its layout placement accordingly.
             //
@@ -620,6 +624,24 @@ impl<'a> Elaborator<'a> {
                         .iter()
                         .zip(self.func.dfg.inst_results(new_inst).iter())
                     {
+                        // TODO: check when cloning if the new instruction creates
+                        // new SSA values (arguments or results or both).
+                        //
+                        // TODO: Elab Values Scoped Map
+                        // Read (.get()) for all results of each instruction,
+                        // to possible remove it because we might have the results
+                        //  already calculated.
+                        //  Update with all results of each just elaborated instruction.
+                        //
+                        // TODO: =========== rematerialization ===================
+                        // Check if the pure instructions have only 1 result or more.
+                        // After remat update all the user args of that arg that just
+                        // rematerialized.
+                        // And update the value_uses map. Inserting a Map Entry for the
+                        // generated value along with the users of that value.
+                        // For the newly generated instruction we don't decremenent dependency
+                        // count of other instructions that are the results of the users of the results
+                        //
                         // NOTE: Aspe: it's not clear to me if the
                         // `value_to_elaborated_value` map makes sense to be in
                         // this pass in the first place. I believe we only used
