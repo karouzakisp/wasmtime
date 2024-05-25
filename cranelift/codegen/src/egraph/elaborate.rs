@@ -394,7 +394,7 @@ impl<'a> Elaborator<'a> {
     /// Possibly rematerialize the instruction producing the value in
     /// `arg` and rewrite `arg` to refer to it, if needed. Returns
     /// `true` if a rewrite occurred.
-    fn _maybe_remat_arg(
+    fn maybe_remat_arg(
         remat_values: &FxHashSet<Value>,
         func: &mut Function,
         remat_copies: &mut FxHashMap<(Block, Value), Value>,
@@ -595,6 +595,20 @@ impl<'a> Elaborator<'a> {
             // create one.
             let remat_arg = false;
 
+            for arg_value in self.func.dfg.inst_values(inst_to_insert).rev() {
+                if Self::maybe_remat_arg(
+                    &self.remat_values,
+                    &mut self.func,
+                    &mut self.remat_copies,
+                    insert_block,
+                    before,
+                    arg_value,
+                    &mut self.stats,
+                ) {
+                    remat_arg = true;
+                }
+            }
+
             // Now we need to place `inst` at the computed location (just
             // before `before`). Note that `inst` may already have been
             // placed somewhere else, because a pure node may be elaborated
@@ -626,7 +640,14 @@ impl<'a> Elaborator<'a> {
                     {
                         // TODO: check when cloning if the new instruction creates
                         // new SSA values (arguments or results or both).
-                        //
+                        if new_result != result {
+                            trace!(
+                                " -> inst {} already has a location; cloned to {}",
+                                inst_to_insert,
+                                new_inst
+                            );
+                        }
+
                         // TODO: Elab Values Scoped Map
                         // Read (.get()) for all results of each instruction,
                         // to possible remove it because we might have the results
@@ -703,6 +724,9 @@ impl<'a> Elaborator<'a> {
             // The instruction is now inserted to the function layout.
             let inserted_inst = inst_to_insert;
 
+            // TODO:
+            self.elab_result_stack
+                .push(ElaboratedValue { in_block, value });
             // TODO: Update the inserted inst's arguments.
             //
             // NOTE: Aspe: it's not clear to me yet if we have to do this step.
