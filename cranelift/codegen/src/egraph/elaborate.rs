@@ -57,8 +57,6 @@ pub(crate) struct Elaborator<'a> {
     /// in every block they are used (e.g., immediates or other
     /// "cheap-to-compute" ops).
     remat_values: &'a FxHashSet<Value>,
-    /// Explicitly-unrolled value elaboration stack.
-    elab_stack: Vec<ElabStackEntry>,
     /// Results from the elab stack.
     elab_result_stack: Vec<ElaboratedValue>,
     /// Explicitly-unrolled block elaboration stack.
@@ -141,24 +139,6 @@ struct LoopStackEntry {
 }
 
 #[derive(Clone, Debug)]
-enum ElabStackEntry {
-    /// Next action is to resolve this value into an elaborated inst
-    /// (placed into the layout) that produces the value, and
-    /// recursively elaborate the insts that produce its args.
-    ///
-    /// Any inserted ops should be inserted before `before`, which is
-    /// the instruction demanding this value.
-    Start { value: Value, before: Inst },
-    /// Args have been pushed; waiting for results.
-    PendingInst {
-        inst: Inst,
-        result_idx: usize,
-        num_args: usize,
-        before: Inst,
-    },
-}
-
-#[derive(Clone, Debug)]
 enum BlockStackEntry {
     Elaborate { block: Block, idom: Option<Block> },
     Pop,
@@ -188,7 +168,6 @@ impl<'a> Elaborator<'a> {
             loop_stack: smallvec![],
             cur_block: Block::reserved_value(),
             remat_values,
-            elab_stack: vec![],
             elab_result_stack: vec![],
             block_stack: vec![],
             remat_copies: FxHashMap::default(),
@@ -632,21 +611,31 @@ impl<'a> Elaborator<'a> {
                         );
                         // Create mappings in the value-to-elab'd-value map from
                         // original results to cloned results.
-                        for (&result, &new_result) in self
+                        let result_pairs: Vec<(Value, Value)> = self
                             .func
                             .dfg
                             .inst_results(inst_to_insert)
                             .iter()
-                            .zip(self.func.dfg.inst_results(new_inst).iter())
-                        {
+                            .cloned()
+                            .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
+                            .collect();
+                        for (result, new_result) in result_pairs.iter() {
                             // Overwrite the arguments of the users of each old result with
-                            // the respective new result. 
-                            for user_inst in self.value_uses[result].iter(){
-                                self.func.dfg.overwrite_inst_values(user_inst, 
-                        self.func.dfg.inst_values(user_inst).into_iter().
-                                map(|user_value| if user_value == result {new_result} else {user_arg}))
+                            // the respective new result.
+                            for user_inst in self.value_uses[*result].iter().cloned() {
+                                let user_args: Vec<_> =
+                                    self.func.dfg.inst_values(user_inst).into_iter().collect();
+                                self.func.dfg.overwrite_inst_values(
+                                    user_inst,
+                                    user_args.into_iter().map(|user_arg| {
+                                        if user_arg == *result {
+                                            *new_result
+                                        } else {
+                                            user_arg
+                                        }
+                                    }),
+                                );
                             }
-                        }
 
                             // NOTE: check when cloning if the new instruction creates
                             // new SSA values (arguments or results or both). It creates new results.
@@ -678,10 +667,10 @@ impl<'a> Elaborator<'a> {
                             // `compute_dgg_and_value_uses` pass, or is it now
                             // entirely unecessary?
                             let elab_value = ElaboratedValue {
-                                value: new_result,
+                                value: *new_result,
                                 in_block: insert_block,
                             };
-                            let best_result = self.value_to_best_value[result];
+                            let best_result = self.value_to_best_value[*result];
                             self.value_to_elaborated_value.insert_if_absent_with_depth(
                                 best_result.1,
                                 elab_value,
@@ -690,7 +679,7 @@ impl<'a> Elaborator<'a> {
 
                             // NOTE: Understand why this is correct...
                             // Shouldn't `best_result` be `elab_value`?
-                            self.value_to_best_value[new_result] = best_result;
+                            self.value_to_best_value[*new_result] = best_result;
 
                             trace!(
                                 " -> cloned inst has new result {} for orig {}",
@@ -723,7 +712,7 @@ impl<'a> Elaborator<'a> {
                 self.func
                     .layout
                     .insert_inst(inst_to_insert, block_terminator);
-            } // !redudant_inst
+            }
 
             // The instruction is now inserted to the function layout.
             let inserted_inst = inst_to_insert;
