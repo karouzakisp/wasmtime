@@ -596,26 +596,39 @@ impl<'a> Elaborator<'a> {
             // if any of its args are remat values. If so, and if we don't have
             // a copy of the rematerializing instruction for this block yet,
             // create one.
-            let remat_arg = false;
+            let mut remat_arg = false;
 
-            for arg_value in self.func.dfg.inst_values(inst_to_insert).rev() {
-                let mut elab_arg_value = self
-                    .value_to_elaborated_value
-                    .get(&arg_value)
-                    .unwrap() // NOTE: we know that all the args are elaborated .
-                    .borrow_mut();
+            let mut inst_values: Vec<ElaboratedValue> = self
+                .func
+                .dfg
+                .inst_values(inst_to_insert)
+                .map(|inst_v| self.value_to_elaborated_value.get(&inst_v).unwrap())
+                .cloned()
+                .collect();
+
+            for mut arg_value in inst_values.iter_mut() {
                 if Self::maybe_remat_arg(
                     &self.remat_values,
                     &mut self.func,
                     &mut self.remat_copies,
                     insert_block,
                     before,
-                    elab_arg_value,
+                    &mut arg_value,
                     &mut self.stats,
                 ) {
                     remat_arg = true;
                 }
             }
+            // TODO: =========== rematerialization ===================
+            // Check if the pure instructions have only 1 result or more.
+            // After remat update all the user args of that arg that just
+            // rematerialized.
+            // And update the value_uses map. Inserting a Map Entry for the
+            // generated value along with the users of that value.
+            // For the newly generated instruction we don't decremenent dependency
+            // count of other instructions that are the results of the users of the results
+
+            // TODO: Update value uses map for rematerialization
 
             // Now we need to place `inst` at the computed location (just
             // before `before`). Note that `inst` may already have been
@@ -732,13 +745,6 @@ impl<'a> Elaborator<'a> {
             // The instruction is now inserted to the function layout.
             let inserted_inst = inst_to_insert;
 
-            // FIXME: update res_idx.
-            let res_idx = 0;
-            // TODO: check if it is correct.
-            self.elab_result_stack.push(ElaboratedValue {
-                value: self.func.dfg.inst_results(inserted_inst)[res_idx],
-                in_block: insert_block,
-            });
             // TODO: Update the inserted inst's arguments.
             //
             // NOTE: Aspe: it's not clear to me yet if we have to do this step.
