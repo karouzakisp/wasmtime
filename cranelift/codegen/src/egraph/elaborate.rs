@@ -1,6 +1,8 @@
 //! Elaboration phase: lowers EGraph back to sequences of operations
 //! in CFG nodes.
 
+use core::borrow::BorrowMut;
+
 use super::cost::Cost;
 use super::OrderingInfo;
 use super::Stats;
@@ -12,6 +14,7 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -596,13 +599,18 @@ impl<'a> Elaborator<'a> {
             let remat_arg = false;
 
             for arg_value in self.func.dfg.inst_values(inst_to_insert).rev() {
+                let mut elab_arg_value = self
+                    .value_to_elaborated_value
+                    .get(&arg_value)
+                    .unwrap() // NOTE: we know that all the args are elaborated .
+                    .borrow_mut();
                 if Self::maybe_remat_arg(
                     &self.remat_values,
                     &mut self.func,
                     &mut self.remat_copies,
                     insert_block,
                     before,
-                    arg_value,
+                    elab_arg_value,
                     &mut self.stats,
                 ) {
                     remat_arg = true;
@@ -724,9 +732,13 @@ impl<'a> Elaborator<'a> {
             // The instruction is now inserted to the function layout.
             let inserted_inst = inst_to_insert;
 
-            // TODO:
-            self.elab_result_stack
-                .push(ElaboratedValue { in_block, value });
+            // FIXME: update res_idx.
+            let res_idx = 0;
+            // TODO: check if it is correct.
+            self.elab_result_stack.push(ElaboratedValue {
+                value: self.func.dfg.inst_results(inserted_inst)[res_idx],
+                in_block: insert_block,
+            });
             // TODO: Update the inserted inst's arguments.
             //
             // NOTE: Aspe: it's not clear to me yet if we have to do this step.
