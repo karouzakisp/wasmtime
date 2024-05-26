@@ -655,17 +655,6 @@ impl<'a> Elaborator<'a> {
                             // For the newly generated instruction we don't decremenent dependency
                             // count of other instructions that are the results of the users of the results
                             //
-                            // NOTE: Aspe: it's not clear to me if the
-                            // `value_to_elaborated_value` map makes sense to be in
-                            // this pass in the first place. I believe we only used
-                            // it to memoize elaborated values, removing unecessary
-                            // "pending" instructions in the previous elaboration
-                            // stack machinery — isn't this similar to GVN?
-                            // With the ready queue inserting instructions, should
-                            // we be doing something similar here, should this be
-                            // integrated somehow in the
-                            // `compute_dgg_and_value_uses` pass, or is it now
-                            // entirely unecessary?
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
                                 in_block: insert_block,
@@ -708,19 +697,34 @@ impl<'a> Elaborator<'a> {
                         inst_to_insert
                     };
 
+                let newly_elab_args: Vec<Value> = self
+                    .func
+                    .dfg
+                    .inst_values(inst_to_insert)
+                    .map(|arg_v| {
+                        self.value_to_elaborated_value
+                            .get(&self.value_to_best_value[arg_v].1)
+                            .unwrap()
+                            .value
+                    })
+                    .collect();
+                self.func
+                    .dfg
+                    .overwrite_inst_values(inst_to_insert, newly_elab_args.into_iter());
+
                 // Insert the instruction to the layout.
                 self.func
                     .layout
                     .insert_inst(inst_to_insert, block_terminator);
             }
 
-            // The instruction is now inserted to the function layout.
+            // NOTE: The instruction is either inserted to the layout or it was redundant_inst,
+            // because all the results were already present.
             let inserted_inst = inst_to_insert;
 
             // FIXME: only needed for debugging... ////////////////////////////
             elaborated_instructions[inserted_inst] = true;
             ///////////////////////////////////////////////////////////////////
-
             // Update the last-use-counts of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
