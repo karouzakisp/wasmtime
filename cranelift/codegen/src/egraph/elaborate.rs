@@ -697,7 +697,7 @@ impl<'a> Elaborator<'a> {
                         inst_to_insert
                     };
 
-                let newly_elab_args: Vec<Value> = self
+                let elaborated_args: Vec<Value> = self
                     .func
                     .dfg
                     .inst_values(inst_to_insert)
@@ -709,18 +709,18 @@ impl<'a> Elaborator<'a> {
                     })
                     .collect();
 
-                let arg_pairs: Vec<(&Value, &Value)> = newly_elab_args
+                elaborated_args
                     .iter()
+                    .cloned()
                     .zip(self.func.dfg.inst_values(inst_to_insert))
-                    .collect();
-
-                arg_pairs.iter().for_each(|(&newly_arg, &arg)| {
-                    self.value_uses[newly_arg] = self.value_uses[arg].clone();
-                });
+                    .for_each(|(newly_arg, arg)| {
+                        self.value_uses[newly_arg] = self.value_uses[arg].clone();
+                    });
 
                 self.func
                     .dfg
-                    .overwrite_inst_values(inst_to_insert, newly_elab_args.iter().cloned());
+                    .overwrite_inst_values(inst_to_insert, elaborated_args.into_iter());
+
                 // Insert the instruction to the layout.
                 self.func
                     .layout
