@@ -14,6 +14,7 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{SecondaryMap, packed_option::ReservedValue};
@@ -74,7 +75,7 @@ pub(crate) struct Elaborator<'a> {
     /// of the skeleton instructions.
     skeleton_inst_order: &'a mut VecDeque<Inst>,
     /// A map from each Value to the instructions that use it.
-    value_uses: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
+    value_users: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
     /// A map that tracks how many dependencies (either true data dependencies
     /// or dependencies due to skeleton instructions' program order) are
     /// remainining for each instruction to get scheduled.
@@ -177,7 +178,7 @@ impl<'a> Elaborator<'a> {
             inst_ordering_info_map,
             skeleton_inst_order,
             dependencies_count: SecondaryMap::with_default(0),
-            value_uses: SecondaryMap::with_default(SmallVec::new()),
+            value_users: SecondaryMap::with_default(SmallVec::new()),
             ready_queue: RankPairingHeap::single_pass_max(),
             stats,
             ctrl_plane,
@@ -466,11 +467,11 @@ impl<'a> Elaborator<'a> {
                 inst_arg_already_visited[arg] = true;
 
                 // Add the instruction to the value_uses map of its arguments.
-                if !self.value_uses[arg]
+                if !self.value_users[arg]
                     .iter()
                     .any(|&user_inst| user_inst == inst)
                 {
-                    self.value_uses[arg].push(inst);
+                    self.value_users[arg].push(inst);
                 }
 
                 // Make sure that the argument comes from the result of an
@@ -529,7 +530,6 @@ impl<'a> Elaborator<'a> {
                 .opcode()
                 .is_terminator()
         );
-
         // FIXME: only needed for debugging... ////////////////////////////////
         let mut elaborated_instructions: SecondaryMap<Inst, bool> =
             SecondaryMap::with_default(false);
@@ -566,13 +566,17 @@ impl<'a> Elaborator<'a> {
             // have to decrement dependency counts for its results' users. We
             // also have to remove each result value from the value_uses maps of
             // its results' users, and possibly change LUC fields accordingly.
-            let redundant_inst = self
-                .func
-                .dfg
-                .inst_results(inst_to_insert)
-                .iter()
-                .all(|inst_result| self.value_to_elaborated_value.get(inst_result).is_some())
-                && is_pure_for_egraph(self.func, inst_to_insert);
+            let redundant_inst =
+                self.func
+                    .dfg
+                    .inst_results(inst_to_insert)
+                    .iter()
+                    .all(|inst_result| {
+                        self.value_to_elaborated_value
+                            .get(ctx, inst_result)
+                            .is_some()
+                    })
+                    && is_pure_for_egraph(self.func, inst_to_insert);
 
             // TODO: In case it the instruction got optimized through LICM (got
             // hoisted out of a loop), change its layout placement accordingly.
@@ -609,8 +613,7 @@ impl<'a> Elaborator<'a> {
                         let new_inst = self.func.dfg.clone_inst(inst_to_insert);
                         trace!(
                             " -> inst {} already has a location; cloned to {}",
-                            inst_to_insert,
-                            new_inst
+                            inst_to_insert, new_inst
                         );
                         // Create mappings in the value-to-elab'd-value map from
                         // original results to cloned results.
@@ -625,9 +628,25 @@ impl<'a> Elaborator<'a> {
                         for (result, new_result) in result_pairs.iter() {
                             // Overwrite the arguments of the users of each old result with
                             // the respective new result.
-                            for user_inst in self.value_uses[*result].iter().cloned() {
+                            for user_inst in self.value_users[*result].iter().cloned() {
                                 let user_args: Vec<_> =
                                     self.func.dfg.inst_values(user_inst).into_iter().collect();
+                                // FIXME //////////////////////////////////////////////////////////
+                                match self.func.dfg.value_def(*result) {
+                                    ValueDef::Union(..) => {
+                                        panic!("egraph union node found at line 632!");
+                                    }
+                                    _ => {}
+                                }
+                                user_args.iter().for_each(|arg| {
+                                    match self.func.dfg.value_def(*arg) {
+                                        ValueDef::Union(..) => {
+                                            panic!("egraph union node found at line 639!");
+                                        }
+                                        _ => {}
+                                    }
+                                });
+                                ///////////////////////////////////////////////////////////////////
                                 self.func.dfg.overwrite_inst_values(
                                     user_inst,
                                     user_args.into_iter().map(|user_arg| {
@@ -664,6 +683,7 @@ impl<'a> Elaborator<'a> {
                             };
                             let best_result = self.value_to_best_value[*result];
                             self.value_to_elaborated_value.insert_if_absent_with_depth(
+                                ctx,
                                 best_result.1,
                                 elab_value,
                                 scope_depth,
@@ -675,8 +695,7 @@ impl<'a> Elaborator<'a> {
 
                             trace!(
                                 " -> cloned inst has new result {} for orig {}",
-                                new_result,
-                                result
+                                new_result, result
                             );
                         }
                         new_inst
@@ -691,6 +710,7 @@ impl<'a> Elaborator<'a> {
                             };
                             let best_result = self.value_to_best_value[result];
                             self.value_to_elaborated_value.insert_if_absent_with_depth(
+                                ctx,
                                 best_result.1,
                                 elab_value,
                                 scope_depth,
@@ -705,25 +725,44 @@ impl<'a> Elaborator<'a> {
                     .dfg
                     .inst_values(inst_to_insert)
                     .map(|arg| {
+                        let best_arg = self.value_to_best_value[arg].1;
+                        match self.func.dfg.value_def(best_arg) {
+                            ValueDef::Union(..) => {
+                                panic!("egraph union node found at line 725!");
+                            }
+                            _ => {}
+                        };
                         if self.func.dfg.value_def(arg).inst().is_some() {
-                            self.value_to_elaborated_value
-                                .get(&self.value_to_best_value[arg].1)
+                            let elab_value = self
+                                .value_to_elaborated_value
+                                .get(ctx, &best_arg)
                                 .unwrap()
-                                .value
+                                .value;
+                            match self.func.dfg.value_def(elab_value) {
+                                ValueDef::Union(..) => {
+                                    panic!("egraph union node found at line 734!");
+                                }
+                                _ => {}
+                            };
+                            elab_value
                         } else {
-                            arg
+                            best_arg
                         }
                     })
                     .collect();
 
-                elaborated_args
+                // FIXME: only for debugging //////////////////////////////////
+                self.func
+                    .dfg
+                    .inst_results(inst_to_insert)
                     .iter()
-                    .cloned()
-                    .filter(|&arg| self.func.dfg.value_def(arg).inst().is_some())
-                    .zip(self.func.dfg.inst_values(inst_to_insert))
-                    .for_each(|(new_arg, arg)| {
-                        self.value_uses[new_arg] = self.value_uses[arg].clone();
+                    .for_each(|&result| match self.func.dfg.value_def(result) {
+                        ValueDef::Union(..) => {
+                            panic!("egraph union node found at line 751!");
+                        }
+                        _ => {}
                     });
+                ///////////////////////////////////////////////////////////////
 
                 self.func
                     .dfg
@@ -742,14 +781,15 @@ impl<'a> Elaborator<'a> {
             // FIXME: only needed for debugging... ////////////////////////////
             elaborated_instructions[inserted_inst] = true;
             ///////////////////////////////////////////////////////////////////
-            // Update the last-use-counts of instructions.
+
+            // Update the LUC (last-use-counts) of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
-                self.value_uses[arg].retain(|&mut arg_user| arg_user != inserted_inst);
+                self.value_users[arg].retain(|&mut arg_user| arg_user != inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
-                if self.value_uses[arg].len() == 1 {
-                    let last_user = self.value_uses[arg].get(0).unwrap().clone();
+                if self.value_users[arg].len() == 1 {
+                    let last_user = self.value_users[arg].get(0).unwrap().clone();
                     self.inst_ordering_info_map[last_user].last_use_count += 1;
                     self.ready_queue
                         .update(&last_user, self.inst_ordering_info_map[last_user]);
@@ -793,7 +833,7 @@ impl<'a> Elaborator<'a> {
             for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
-                for user_inst in self.value_uses[result].iter().cloned() {
+                for user_inst in self.value_users[result].iter().cloned() {
                     self.dependencies_count[user_inst] -= 1;
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
@@ -827,6 +867,34 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
+
+        // FIXME: Update the block terminator's arguments with elaborated values.
+        let terminator_elab_args: Vec<Value> = self
+            .func
+            .dfg
+            .inst_values(block_terminator)
+            .map(|arg| {
+                let best_value = self.value_to_best_value[arg].1;
+                self.value_to_elaborated_value
+                    .get(ctx, &best_value)
+                    .unwrap()
+                    .value
+            })
+            .collect();
+        self.func
+            .dfg
+            .overwrite_inst_values(block_terminator, terminator_elab_args.into_iter());
+
+        // FIXME: only needed for debugging... ////////////////////////////////
+        self.func
+            .dfg
+            .inst_args(block_terminator)
+            .iter()
+            .for_each(|&arg| match self.func.dfg.value_def(arg) {
+                ValueDef::Union(..) => panic!("Terminator has union param"),
+                _ => {}
+            });
+        ///////////////////////////////////////////////////////////////////////
     }
 
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
