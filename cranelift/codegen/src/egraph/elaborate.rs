@@ -701,16 +701,14 @@ impl<'a> Elaborator<'a> {
                     .func
                     .dfg
                     .inst_values(inst_to_insert)
-                    .filter_map(|arg| {
+                    .map(|arg| {
                         if self.func.dfg.value_def(arg).inst().is_some() {
-                            Some(
-                                self.value_to_elaborated_value
-                                    .get(&self.value_to_best_value[arg].1)
-                                    .unwrap()
-                                    .value,
-                            )
+                            self.value_to_elaborated_value
+                                .get(&self.value_to_best_value[arg].1)
+                                .unwrap()
+                                .value
                         } else {
-                            None
+                            arg
                         }
                     })
                     .collect();
@@ -718,6 +716,7 @@ impl<'a> Elaborator<'a> {
                 elaborated_args
                     .iter()
                     .cloned()
+                    .filter(|&arg| self.func.dfg.value_def(arg).inst().is_some())
                     .zip(self.func.dfg.inst_values(inst_to_insert))
                     .for_each(|(new_arg, arg)| {
                         self.value_uses[new_arg] = self.value_uses[arg].clone();
