@@ -421,6 +421,11 @@ impl<'a> Elaborator<'a> {
             next_inst = self.func.layout.next_inst(inst);
 
             // Create the dependencies among skeleton instructions.
+            trace!(
+                "add_skeleton_dependences:: dependency count before increment for inst {} is {}",
+                inst,
+                self.dependencies_count[inst]
+            );
             self.dependencies_count[inst] += 1;
 
             // Remove all the skeleton instructions except the last one.
@@ -432,6 +437,11 @@ impl<'a> Elaborator<'a> {
         // The first skeleton instruction has no dependency since there are no
         // previous skeleton instructions in the block.
         if let Some(first_inst) = first_inst {
+            trace!(
+                "add_skeleton_dependencies:: dependency count before decrement for first inst {} is {}",
+                first_inst,
+                self.dependencies_count[first_inst]
+            );
             self.dependencies_count[first_inst] -= 1;
         }
     }
@@ -485,6 +495,11 @@ impl<'a> Elaborator<'a> {
 
                     // Construct the `dependencies_count` map.
                     self.dependencies_count[inst] += 1;
+                    trace!(
+                        "computeDDG: dependency count after increment for inst {} is {}",
+                        inst,
+                        self.dependencies_count[inst]
+                    );
 
                     // Push the arguments of the instruction to the instruction
                     // queue for the breadth-first traversal of the data
@@ -718,25 +733,32 @@ impl<'a> Elaborator<'a> {
                     .dfg
                     .inst_values(inst_to_insert)
                     .map(|arg| {
-                        let best_arg = self.value_to_best_value[arg].1;
-                        match self.func.dfg.value_def(best_arg) {
+                        let best_value = self.value_to_best_value[arg].1;
+                        match self.func.dfg.value_def(best_value) {
                             ValueDef::Union(..) => {
                                 panic!("egraph union node found at line 725!");
                             }
                             _ => {}
                         };
-                        if self.func.dfg.value_def(arg).inst().is_some() {
-                            let elab_value =
-                                self.value_to_elaborated_value.get(&best_arg).unwrap().value;
-                            match self.func.dfg.value_def(elab_value) {
-                                ValueDef::Union(..) => {
-                                    panic!("egraph union node found at line 734!");
-                                }
-                                _ => {}
-                            };
-                            elab_value
+                        if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                            if self.func.layout.inst_block(arg_inst).is_some() {
+                                let elab_value = self
+                                    .value_to_elaborated_value
+                                    .get(&best_value)
+                                    .unwrap()
+                                    .value;
+                                match self.func.dfg.value_def(elab_value) {
+                                    ValueDef::Union(..) => {
+                                        panic!("egraph union node found at line 734!");
+                                    }
+                                    _ => {}
+                                };
+                                elab_value
+                            } else {
+                                best_value
+                            }
                         } else {
-                            best_arg
+                            best_value
                         }
                     })
                     .collect();
@@ -799,6 +821,11 @@ impl<'a> Elaborator<'a> {
                 self.skeleton_inst_order.pop_front();
                 if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
                     let next_skeleton_inst = next_skeleton_inst.clone();
+                    trace!(
+                        "schedule_insts: skeleton result_user_inst dependency count before decrement for inst {} is {}",
+                        next_skeleton_inst,
+                        self.dependencies_count[next_skeleton_inst]
+                    );
                     self.dependencies_count[next_skeleton_inst] -= 1;
                     if self.dependencies_count[next_skeleton_inst] == 0
                         && next_skeleton_inst != block_terminator
@@ -806,6 +833,10 @@ impl<'a> Elaborator<'a> {
                         self.ready_queue.push(
                             next_skeleton_inst,
                             self.inst_ordering_info_map[next_skeleton_inst],
+                        );
+                        assert!(
+                            !elaborated_instructions[next_skeleton_inst],
+                            "We already inserted this skeleton instruction in this block through the ready queue!",
                         );
                         skeleton_already_inserted = true;
                         // FIXME: only needed for debugging... ////////////////
@@ -824,6 +855,13 @@ impl<'a> Elaborator<'a> {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
+                    trace!(
+                        "schedule_insts: true data dependency : result_user_inst {} for inserted inst {} dependency count before decrement for user_inst {} is {}",
+                        result,
+                        inserted_inst,
+                        user_inst,
+                        self.dependencies_count[user_inst]
+                    );
                     self.dependencies_count[user_inst] -= 1;
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
@@ -837,6 +875,10 @@ impl<'a> Elaborator<'a> {
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                             // FIXME: only needed for debugging... ////////////
                             assert!(
+                                !elaborated_instructions[user_inst],
+                                "We already inserted this skeleton instruction in this block through the ready queue!",
+                            );
+                            assert!(
                                 user_inst != inserted_inst,
                                 "We already have inserted inst to the layout"
                             );
@@ -849,6 +891,10 @@ impl<'a> Elaborator<'a> {
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                             // FIXME: only needed for debugging... ////////////
+                            assert!(
+                                !elaborated_instructions[user_inst],
+                                "We already inserted this skeleton instruction in this block through the ready queue!",
+                            );
                             assert!(!instruction_in_ready_queue[user_inst]);
                             instruction_in_ready_queue[user_inst] = true;
                             ///////////////////////////////////////////////////
@@ -870,10 +916,32 @@ impl<'a> Elaborator<'a> {
                     arg,
                     best_value
                 );
-                self.value_to_elaborated_value
-                    .get(&best_value)
-                    .unwrap()
-                    .value
+                match self.func.dfg.value_def(best_value) {
+                    ValueDef::Union(..) => {
+                        panic!("egraph union node found at line 725!");
+                    }
+                    _ => {}
+                };
+                if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                    if self.func.layout.inst_block(arg_inst).is_some() {
+                        let elab_value = self
+                            .value_to_elaborated_value
+                            .get(&best_value)
+                            .unwrap()
+                            .value;
+                        match self.func.dfg.value_def(elab_value) {
+                            ValueDef::Union(..) => {
+                                panic!("egraph union node found at line 734!");
+                            }
+                            _ => {}
+                        };
+                        elab_value
+                    } else {
+                        best_value
+                    }
+                } else {
+                    best_value
+                }
             })
             .collect();
         self.func
