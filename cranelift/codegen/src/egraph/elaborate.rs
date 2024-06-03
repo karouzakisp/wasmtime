@@ -865,6 +865,11 @@ impl<'a> Elaborator<'a> {
             .inst_values(block_terminator)
             .map(|arg| {
                 let best_value = self.value_to_best_value[arg].1;
+                trace!(
+                    " -> Terminator elab arg {} is best value is {}",
+                    arg,
+                    best_value
+                );
                 self.value_to_elaborated_value
                     .get(&best_value)
                     .unwrap()

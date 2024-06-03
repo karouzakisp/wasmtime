@@ -38,7 +38,7 @@ smallvec = { workspace = true }
 regalloc2 = { workspace = true, features = ["checker"] }
 souper-ir = { version = "2.1.0", optional = true }
 sha2 = { version = "0.10.2", optional = true }
-rustc-hash  = { workspace = true }
+rustc-hash = { workspace = true }
 # It is a goal of the cranelift-codegen crate to have minimal external dependencies.
 # Please don't add any unless they are essential to the task of creating binary
 # machine code. Integration tests that need external dependencies can be
@@ -54,7 +54,7 @@ cranelift-codegen-meta = { path = "meta", version = "0.112.0" }
 cranelift-isle = { path = "../isle/isle", version = "=0.112.0" }
 
 [features]
-default = ["std", "unwind", "host-arch", "timing"]
+default = ["std", "unwind", "host-arch", "timing", "trace-log"]
 
 # The "std" feature enables use of libstd. The "core" feature enables use
 # of some minimal std-like replacement libraries. At least one of these two
@@ -83,18 +83,16 @@ x86 = []
 arm64 = []
 s390x = []
 riscv64 = []
-pulley = ["dep:pulley-interpreter", "pulley-interpreter/encode", "pulley-interpreter/disas"]
+pulley = [
+    "dep:pulley-interpreter",
+    "pulley-interpreter/encode",
+    "pulley-interpreter/disas",
+]
 # Enable the ISA target for the host machine
 host-arch = []
 
 # Option to enable all architectures.
-all-arch = [
-    "x86",
-    "arm64",
-    "s390x",
-    "riscv64",
-    "pulley",
-]
+all-arch = ["x86", "arm64", "s390x", "riscv64", "pulley"]
 
 # For dependent crates that want to serialize some parts of cranelift
 enable-serde = [
@@ -103,15 +101,11 @@ enable-serde = [
     "cranelift-entity/enable-serde",
     "cranelift-bitset/enable-serde",
     "regalloc2/enable-serde",
-    "smallvec/serde"
+    "smallvec/serde",
 ]
 
 # Enable the incremental compilation cache for hot-reload use cases.
-incremental-cache = [
-    "enable-serde",
-    "postcard",
-    "sha2"
-]
+incremental-cache = ["enable-serde", "postcard", "sha2"]
 
 # Enable support for the Souper harvester.
 souper-harvest = ["souper-ir", "souper-ir/stringify"]
