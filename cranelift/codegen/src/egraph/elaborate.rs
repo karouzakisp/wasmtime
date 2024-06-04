@@ -479,6 +479,8 @@ impl<'a> Elaborator<'a> {
                 }
                 inst_arg_already_visited[arg] = true;
 
+                let BestEntry(_, arg) = self.value_to_best_value[arg];
+
                 // Add the instruction to the value_users map of its arguments.
                 if !self.value_users[arg]
                     .iter()
@@ -843,9 +845,15 @@ impl<'a> Elaborator<'a> {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
-                    if self.dependencies_count[user_inst] != 0 {
-                        self.dependencies_count[user_inst] -= 1;
-                    }
+                    trace!(
+                        "schedule_insts: true data dependency : result_user_inst {} for inserted inst {} dependency count before decrement for user_inst {} is {}",
+                        result,
+                        inserted_inst,
+                        user_inst,
+                        self.dependencies_count[user_inst]
+                    );
+                    self.dependencies_count[user_inst] -= 1;
+
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
                     // queue. The insertion will succeed only if the instruction
