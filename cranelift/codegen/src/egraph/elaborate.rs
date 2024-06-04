@@ -413,6 +413,7 @@ impl<'a> Elaborator<'a> {
     // manufacturing the dependencies among them due to their original program
     // order.
     fn add_skeleton_dependencies(&mut self, block: Block) {
+        trace!("--- Starting skeleton dependencies pass for {} ---", block);
         let first_inst = self.func.layout.first_inst(block);
         let mut next_inst = first_inst;
 
@@ -455,11 +456,12 @@ impl<'a> Elaborator<'a> {
     }
 
     /// Compute the critical path for all instructions in the given `block`, and
-    /// construct the `value_uses` and the `dependencies_count` maps.
+    /// construct the `value_users` and the `dependencies_count` maps.
     ///
     /// It also initializes the ready queue with all instructions that have 0
     /// dependencies after the pass.
-    fn compute_ddg_and_value_uses(&mut self, block: Block) {
+    fn compute_ddg_and_value_users(&mut self, block: Block) {
+        trace!("--- Starting DDG pass for {} ---", block);
         assert_eq!(self.func.layout.block_insts(block).count(), 1);
         let mut next_inst = self.func.layout.last_inst(block);
         let block_terminator = next_inst.unwrap();
@@ -483,7 +485,7 @@ impl<'a> Elaborator<'a> {
                 }
                 inst_arg_already_visited[arg] = true;
 
-                // Add the instruction to the value_uses map of its arguments.
+                // Add the instruction to the value_users map of its arguments.
                 if !self.value_users[arg]
                     .iter()
                     .any(|&user_inst| user_inst == inst)
@@ -543,6 +545,7 @@ impl<'a> Elaborator<'a> {
     /// Put instructions back to the function's layout using the LUC and CP
     /// heuristics.
     fn schedule_insts(&mut self, block: Block) {
+        trace!("--- Starting scheduling pass for {} ---", block);
         // Take the block terminator. It should be the only instruction left
         // inside the block, and be a terminator.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
@@ -570,6 +573,7 @@ impl<'a> Elaborator<'a> {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
             ///////////////////////////////////////////////////////////////////
+            trace!(" ----> New ready-queue instruction: {}", inst_to_insert);
 
             // If all results of the to-be-inserted instruction have already
             // been created through instruction elaborations, we can reuse them,
@@ -578,7 +582,7 @@ impl<'a> Elaborator<'a> {
             //
             // We hence can skip those instructions' insertion, but we still
             // have to decrement dependency counts for its results' users. We
-            // also have to remove each result value from the value_uses maps of
+            // also have to remove each result value from the value_users maps of
             // its results' users, and possibly change LUC fields accordingly.
             let redundant_inst = self
                 .func
@@ -607,7 +611,7 @@ impl<'a> Elaborator<'a> {
             // Check if the pure instructions have only 1 result or more.
             // After remat update all the user args of that arg that just
             // rematerialized.
-            // And update the value_uses map. Inserting a Map Entry for the
+            // And update the value_users map. Inserting a Map Entry for the
             // generated value along with the users of that value.
             // For the newly generated instruction we don't decremenent dependency
             // count of other instructions that are the results of the users of the results
@@ -620,9 +624,9 @@ impl<'a> Elaborator<'a> {
             // instruction.
             //
             // NOTE: We must see if this duplication will necesitate changes in
-            // the `value_uses` map, the ordering information, the
+            // the `value_users` map, the ordering information, the
             // `dependencies_count` map etc. It is possible that this
-            // duplication might move in the `compute_ddg_and_value_uses` pass!
+            // duplication might move in the `compute_ddg_and_value_users` pass!
             trace!("need inst {} before {}", inst_to_insert, before);
             if !redundant_inst {
                 inst_to_insert =
@@ -897,7 +901,7 @@ impl<'a> Elaborator<'a> {
             }
         }
 
-        // FIXME: Update the block terminator's arguments with elaborated values.
+        // Update the block terminator's arguments with elaborated values.
         let terminator_elab_args: Vec<Value> = self
             .func
             .dfg
@@ -937,9 +941,15 @@ impl<'a> Elaborator<'a> {
                 }
             })
             .collect();
+
         self.func
             .dfg
             .overwrite_inst_values(block_terminator, terminator_elab_args.into_iter());
+
+        // Remove the block terminator from its arguments' value users sets.
+        for arg in self.func.dfg.inst_values(block_terminator) {
+            self.value_users[arg].retain(|&mut arg_user| arg_user != block_terminator);
+        }
 
         // FIXME: only needed for debugging... ////////////////////////////////
         self.func
@@ -966,7 +976,7 @@ impl<'a> Elaborator<'a> {
                     self.value_to_elaborated_value.increment_depth();
 
                     self.add_skeleton_dependencies(block);
-                    self.compute_ddg_and_value_uses(block);
+                    self.compute_ddg_and_value_users(block);
                     // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
 
