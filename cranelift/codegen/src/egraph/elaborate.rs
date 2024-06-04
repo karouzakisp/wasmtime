@@ -12,7 +12,6 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
-use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -23,7 +22,7 @@ use smallvec::{smallvec, SmallVec};
 pub(crate) struct Elaborator<'a> {
     func: &'a mut Function,
     domtree: &'a DominatorTreePreorder,
-    loop_analysis: &'a LoopAnalysis,
+    _loop_analysis: &'a LoopAnalysis,
     /// Map from Value that is produced by a pure Inst (and was thus
     /// not in the side-effecting skeleton) to the value produced by
     /// an elaborated inst (placed in the layout) to whose results we
@@ -51,19 +50,19 @@ pub(crate) struct Elaborator<'a> {
     /// (tree of union value-nodes).
     value_to_best_value: SecondaryMap<Value, BestEntry>,
     /// Stack of blocks and loops in current elaboration path.
-    loop_stack: SmallVec<[LoopStackEntry; 8]>,
+    _loop_stack: SmallVec<[LoopStackEntry; 8]>,
     /// The current block into which we are elaborating.
-    cur_block: Block,
+    _cur_block: Block,
     /// Values that opt rules have indicated should be rematerialized
     /// in every block they are used (e.g., immediates or other
     /// "cheap-to-compute" ops).
-    remat_values: &'a FxHashSet<Value>,
+    _remat_values: &'a FxHashSet<Value>,
     /// Results from the elab stack.
-    elab_result_stack: Vec<ElaboratedValue>,
+    _elab_result_stack: Vec<ElaboratedValue>,
     /// Explicitly-unrolled block elaboration stack.
     block_stack: Vec<BlockStackEntry>,
     /// Copies of values that have been rematerialized.
-    remat_copies: FxHashMap<(Block, Value), Value>,
+    _remat_copies: FxHashMap<(Block, Value), Value>,
     /// A map from instructions to their ordering information (LUC, CP,
     /// original program order sequence and information for the LICM
     /// optimization).
@@ -163,15 +162,15 @@ impl<'a> Elaborator<'a> {
         Self {
             func,
             domtree,
-            loop_analysis,
+            _loop_analysis: loop_analysis,
             value_to_elaborated_value: ScopedHashMap::with_capacity(num_values),
             value_to_best_value,
-            loop_stack: smallvec![],
-            cur_block: Block::reserved_value(),
-            remat_values,
-            elab_result_stack: vec![],
+            _loop_stack: smallvec![],
+            _cur_block: Block::reserved_value(),
+            _remat_values: remat_values,
+            _elab_result_stack: vec![],
             block_stack: vec![],
-            remat_copies: FxHashMap::default(),
+            _remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
             skeleton_inst_order,
             dependencies_count: SecondaryMap::with_default(0),
@@ -188,16 +187,16 @@ impl<'a> Elaborator<'a> {
             "start_block: block {:?} with idom {:?} at loop depth {:?} scope depth {}",
             block,
             idom,
-            self.loop_stack.len(),
+            self._loop_stack.len(),
             self.value_to_elaborated_value.depth()
         );
 
         // Pop any loop levels we're no longer in.
-        while let Some(inner_loop) = self.loop_stack.last() {
-            if self.loop_analysis.is_in_loop(block, inner_loop.lp) {
+        while let Some(inner_loop) = self._loop_stack.last() {
+            if self._loop_analysis.is_in_loop(block, inner_loop.lp) {
                 break;
             }
-            self.loop_stack.pop();
+            self._loop_stack.pop();
         }
 
         // Note that if the *entry* block is a loop header, we will
@@ -207,8 +206,8 @@ impl<'a> Elaborator<'a> {
         // `LoopAnalysis` will otherwise still make note of this loop
         // and loop depths will not match.
         if let Some(idom) = idom {
-            if let Some(lp) = self.loop_analysis.is_loop_header(block) {
-                self.loop_stack.push(LoopStackEntry {
+            if let Some(lp) = self._loop_analysis.is_loop_header(block) {
+                self._loop_stack.push(LoopStackEntry {
                     lp,
                     // Any code hoisted out of this loop will have code
                     // placed in `idom`, and will have def mappings
@@ -219,19 +218,19 @@ impl<'a> Elaborator<'a> {
                 });
                 trace!(
                     " -> loop header, pushing; depth now {}",
-                    self.loop_stack.len()
+                    self._loop_stack.len()
                 );
             }
         } else {
             debug_assert!(
-                self.loop_analysis.is_loop_header(block).is_none(),
+                self._loop_analysis.is_loop_header(block).is_none(),
                 "Entry block (domtree root) cannot be a loop header!"
             );
         }
 
-        trace!("block {}: loop stack is {:?}", block, self.loop_stack);
+        trace!("block {}: loop stack is {:?}", block, self._loop_stack);
 
-        self.cur_block = block;
+        self._cur_block = block;
     }
 
     fn compute_best_values(&mut self) {
@@ -434,6 +433,12 @@ impl<'a> Elaborator<'a> {
             }
         }
 
+        // FIXME: only needed for debugging... ////////////////////////////////
+        if let Some(inst) = next_inst {
+            assert!(self.func.dfg.insts[inst].opcode().is_terminator());
+        }
+        ///////////////////////////////////////////////////////////////////////
+
         // The first skeleton instruction has no dependency since there are no
         // previous skeleton instructions in the block.
         if let Some(first_inst) = first_inst {
@@ -443,6 +448,9 @@ impl<'a> Elaborator<'a> {
                 self.dependencies_count[first_inst]
             );
             self.dependencies_count[first_inst] -= 1;
+            if !self.func.dfg.insts[first_inst].opcode().is_terminator() {
+                self.dependencies_count[first_inst] -= 1;
+            }
         }
     }
 
@@ -561,14 +569,8 @@ impl<'a> Elaborator<'a> {
         while let Some(mut inst_to_insert) = self.ready_queue.pop() {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
-            assert!(
-                !elaborated_instructions[inst_to_insert],
-                "We already inserted this instruction in this block through the ready queue!",
-            );
-
             ///////////////////////////////////////////////////////////////////
 
-            // TODO
             // If all results of the to-be-inserted instruction have already
             // been created through instruction elaborations, we can reuse them,
             // so inserting the instruction would have no effect for us, given
@@ -601,6 +603,14 @@ impl<'a> Elaborator<'a> {
             // if any of its args are remat values. If so, and if we don't have
             // a copy of the rematerializing instruction for this block yet,
             // create one.
+            // TODO: =========== rematerialization ===================
+            // Check if the pure instructions have only 1 result or more.
+            // After remat update all the user args of that arg that just
+            // rematerialized.
+            // And update the value_uses map. Inserting a Map Entry for the
+            // generated value along with the users of that value.
+            // For the newly generated instruction we don't decremenent dependency
+            // count of other instructions that are the results of the users of the results
             let remat_arg = false;
 
             // Now we need to place `inst` at the computed location (just
@@ -619,13 +629,18 @@ impl<'a> Elaborator<'a> {
                     if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
                         // Clone the inst!
                         let new_inst = self.func.dfg.clone_inst(inst_to_insert);
+
+                        // FIXME: CHECK again self.dependencies_count[new_inst] = self.dependencies_count[inst_to_insert];
+
                         trace!(
                             " -> inst {} already has a location; cloned to {}",
                             inst_to_insert,
                             new_inst
                         );
+
                         // Create mappings in the value-to-elab'd-value map from
-                        // original results to cloned results.
+                        // original results to cloned results, and generate the
+                        // necessary value_users maps.
                         let result_pairs: Vec<(Value, Value)> = self
                             .func
                             .dfg
@@ -635,27 +650,15 @@ impl<'a> Elaborator<'a> {
                             .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
                             .collect();
                         for (result, new_result) in result_pairs.iter() {
+                            // Clone the value_users for each newly-generated result using the maps
+                            // from the old results.
+                            self.value_users[*new_result] = self.value_users[*result].clone();
+
                             // Overwrite the arguments of the users of each old result with
                             // the respective new result.
                             for user_inst in self.value_users[*result].iter().cloned() {
                                 let user_args: Vec<_> =
                                     self.func.dfg.inst_values(user_inst).into_iter().collect();
-                                // FIXME //////////////////////////////////////////////////////////
-                                match self.func.dfg.value_def(*result) {
-                                    ValueDef::Union(..) => {
-                                        panic!("egraph union node found at line 632!");
-                                    }
-                                    _ => {}
-                                }
-                                user_args.iter().for_each(|arg| {
-                                    match self.func.dfg.value_def(*arg) {
-                                        ValueDef::Union(..) => {
-                                            panic!("egraph union node found at line 639!");
-                                        }
-                                        _ => {}
-                                    }
-                                });
-                                ///////////////////////////////////////////////////////////////////
                                 self.func.dfg.overwrite_inst_values(
                                     user_inst,
                                     user_args.into_iter().map(|user_arg| {
@@ -668,24 +671,6 @@ impl<'a> Elaborator<'a> {
                                 );
                             }
 
-                            // NOTE: check when cloning if the new instruction creates
-                            // new SSA values (arguments or results or both). It creates new results.
-                            //
-                            // TODO: Elab Values Scoped Map
-                            // Read (.get()) for all results of each instruction,
-                            // to possible remove it because we might have the results
-                            //  already calculated.
-                            //  Update with all results of each just elaborated instruction.
-                            //
-                            // TODO: =========== rematerialization ===================
-                            // Check if the pure instructions have only 1 result or more.
-                            // After remat update all the user args of that arg that just
-                            // rematerialized.
-                            // And update the value_uses map. Inserting a Map Entry for the
-                            // generated value along with the users of that value.
-                            // For the newly generated instruction we don't decremenent dependency
-                            // count of other instructions that are the results of the users of the results
-                            //
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
                                 in_block: insert_block,
@@ -774,6 +759,11 @@ impl<'a> Elaborator<'a> {
                         }
                         _ => {}
                     });
+
+                assert!(
+                    elaborated_instructions[inst_to_insert] == false,
+                    "We already inserted this instruction in this block through the ready queue!",
+                );
                 ///////////////////////////////////////////////////////////////
 
                 self.func
@@ -863,6 +853,9 @@ impl<'a> Elaborator<'a> {
                         self.dependencies_count[user_inst]
                     );
                     self.dependencies_count[user_inst] -= 1;
+                    if self.dependencies_count[user_inst] != 0 {
+                        self.dependencies_count[user_inst] -= 1;
+                    }
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
                     // queue. The insertion will succeed only if the instruction
