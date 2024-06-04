@@ -448,7 +448,6 @@ impl<'a> Elaborator<'a> {
                 first_inst,
                 self.dependencies_count[first_inst]
             );
-            self.dependencies_count[first_inst] -= 1;
             if !self.func.dfg.insts[first_inst].opcode().is_terminator() {
                 self.dependencies_count[first_inst] -= 1;
             }
@@ -484,6 +483,8 @@ impl<'a> Elaborator<'a> {
                     continue;
                 }
                 inst_arg_already_visited[arg] = true;
+
+                let BestEntry(_, arg) = self.value_to_best_value[arg];
 
                 // Add the instruction to the value_users map of its arguments.
                 if !self.value_users[arg]
@@ -857,9 +858,6 @@ impl<'a> Elaborator<'a> {
                         self.dependencies_count[user_inst]
                     );
                     self.dependencies_count[user_inst] -= 1;
-                    if self.dependencies_count[user_inst] != 0 {
-                        self.dependencies_count[user_inst] -= 1;
-                    }
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
                     // queue. The insertion will succeed only if the instruction
