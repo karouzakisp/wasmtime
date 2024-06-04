@@ -1,16 +1,8 @@
    Compiling cranelift-codegen v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/codegen)
-warning: unused import: `alloc::borrow::ToOwned`
-  --> cranelift/codegen/src/egraph/elaborate.rs:15:5
-   |
-15 | use alloc::borrow::ToOwned;
-   |     ^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: `#[warn(unused_imports)]` on by default
-
 warning: unused variable: `idom`
-   --> cranelift/codegen/src/egraph/elaborate.rs:971:53
+   --> cranelift/codegen/src/egraph/elaborate.rs:961:53
     |
-971 |                 BlockStackEntry::Elaborate { block, idom } => {
+961 |                 BlockStackEntry::Elaborate { block, idom } => {
     |                                                     ^^^^ help: try ignoring the field: `idom: _`
     |
     = note: `#[warn(unused_variables)]` on by default
@@ -46,53 +38,29 @@ warning: fields `elaborate_visit_node`, `elaborate_memoize_hit`, `elaborate_memo
     |
     = note: `Stats` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
 
-warning: fields `loop_analysis`, `loop_stack`, `cur_block`, `remat_values`, `elab_result_stack`, and `remat_copies` are never read
-  --> cranelift/codegen/src/egraph/elaborate.rs:26:5
-   |
-23 | pub(crate) struct Elaborator<'a> {
-   |                   ---------- fields in this struct
-...
-26 |     loop_analysis: &'a LoopAnalysis,
-   |     ^^^^^^^^^^^^^
-...
-54 |     loop_stack: SmallVec<[LoopStackEntry; 8]>,
-   |     ^^^^^^^^^^
-55 |     /// The current block into which we are elaborating.
-56 |     cur_block: Block,
-   |     ^^^^^^^^^
-...
-60 |     remat_values: &'a FxHashSet<Value>,
-   |     ^^^^^^^^^^^^
-61 |     /// Results from the elab stack.
-62 |     elab_result_stack: Vec<ElaboratedValue>,
-   |     ^^^^^^^^^^^^^^^^^
-...
-66 |     remat_copies: FxHashMap<(Block, Value), Value>,
-   |     ^^^^^^^^^^^^
-
 warning: field `in_block` is never read
-   --> cranelift/codegen/src/egraph/elaborate.rs:124:5
+   --> cranelift/codegen/src/egraph/elaborate.rs:123:5
     |
-123 | struct ElaboratedValue {
+122 | struct ElaboratedValue {
     |        --------------- field in this struct
-124 |     in_block: Block,
+123 |     in_block: Block,
     |     ^^^^^^^^
     |
     = note: `ElaboratedValue` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
 
 warning: fields `lp`, `hoist_block`, and `scope_depth` are never read
-   --> cranelift/codegen/src/egraph/elaborate.rs:131:5
+   --> cranelift/codegen/src/egraph/elaborate.rs:130:5
     |
-129 | struct LoopStackEntry {
+128 | struct LoopStackEntry {
     |        -------------- fields in this struct
-130 |     /// The loop identifier.
-131 |     lp: Loop,
+129 |     /// The loop identifier.
+130 |     lp: Loop,
     |     ^^
 ...
-137 |     hoist_block: Block,
+136 |     hoist_block: Block,
     |     ^^^^^^^^^^^
-138 |     /// The depth in the scope map.
-139 |     scope_depth: u32,
+137 |     /// The depth in the scope map.
+138 |     scope_depth: u32,
     |     ^^^^^^^^^^^
     |
     = note: `LoopStackEntry` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
@@ -111,15 +79,15 @@ warning: method `insert_if_absent` is never used
    Compiling cranelift-module v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/module)
    Compiling cranelift-native v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/native)
    Compiling cranelift-frontend v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/frontend)
-   Compiling cranelift-interpreter v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/interpreter)
    Compiling cranelift-reader v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/reader)
+   Compiling cranelift-interpreter v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/interpreter)
    Compiling cranelift-jit v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/jit)
    Compiling cranelift-object v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/object)
    Compiling cranelift v0.109.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/umbrella)
    Compiling cranelift-filetests v0.0.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift/filetests)
-warning: `cranelift-codegen` (lib) generated 8 warnings (run `cargo fix --lib -p cranelift-codegen` to apply 2 suggestions)
+warning: `cranelift-codegen` (lib) generated 6 warnings (run `cargo fix --lib -p cranelift-codegen` to apply 1 suggestion)
    Compiling cranelift-tools v0.0.0 (/home/pk/Documents/ms/hy446/wasmtime/cranelift)
-    Finished dev [unoptimized + debuginfo] target(s) in 5.28s
+    Finished dev [unoptimized + debuginfo] target(s) in 6.64s
      Running `/home/pk/Documents/ms/hy446/wasmtime/target/debug/clif-util run filetests/filetests/egraph/basic-gvn.clif`
  DEBUG cranelift_codegen::timing::enabled > timing: Starting Parsing textual Cranelift IR, (during <no pass>)
  DEBUG cranelift_codegen::timing::enabled > timing: Ending Parsing textual Cranelift IR: 0ms
@@ -401,7 +369,7 @@ block2:
  TRACE cranelift_codegen::egraph::elaborate    > computeDDG: dependency count after increment for inst inst3 is 1
  TRACE cranelift_codegen::egraph::elaborate    > need inst inst0 before inst4
  TRACE cranelift_codegen::egraph::elaborate    > schedule_insts: true data dependency : result_user_inst v2 for inserted inst inst0 dependency count before decrement for user_inst inst1 is 0
-thread 'main' panicked at cranelift/codegen/src/egraph/elaborate.rs:865:21:
+thread 'main' panicked at cranelift/codegen/src/egraph/elaborate.rs:855:21:
 attempt to subtract with overflow
 note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
  DEBUG cranelift_codegen::timing::enabled      > timing: Ending Egraph based optimizations: 0ms
