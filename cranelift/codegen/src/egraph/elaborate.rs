@@ -609,6 +609,7 @@ impl<'a> Elaborator<'a> {
             // if any of its args are remat values. If so, and if we don't have
             // a copy of the rematerializing instruction for this block yet,
             // create one.
+            //
             // TODO: =========== rematerialization ===================
             // Check if the pure instructions have only 1 result or more.
             // After remat update all the user args of that arg that just
@@ -658,8 +659,11 @@ impl<'a> Elaborator<'a> {
                         for (result, new_result) in result_pairs.iter() {
                             // Clone the value_users for each newly-generated result using the maps
                             // from the old results.
-                            self.value_users[*new_result] = self.value_users[*result].clone();
-
+                            self.value_users[*new_result] = self.value_users[*result]
+                                .iter()
+                                .filter(|&inst| self.func.layout.inst_block(*inst) != Some(block))
+                                .cloned()
+                                .collect();
                             // Overwrite the arguments of the users of each old result with
                             // the respective new result.
                             for user_inst in self.value_users[*result].iter().cloned() {
@@ -693,7 +697,8 @@ impl<'a> Elaborator<'a> {
                             self.value_to_best_value[*new_result] = best_result;
 
                             trace!(
-                                " -> cloned inst has new result {} for orig {}",
+                                " -> cloned {} has new result {} for orig {}",
+                                new_inst,
                                 new_result,
                                 result
                             );
@@ -851,12 +856,17 @@ impl<'a> Elaborator<'a> {
             // layout. If any instruction ends up with zero dependencies, try to
             // insert it to the ready queue.
             if !redundant_inst {
+                trace!(
+                    "inserted inst {} has {} number of results",
+                    inserted_inst,
+                    self.func.dfg.inst_results(inserted_inst).len()
+                );
                 for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
                     // For each result, find all instructions that use it and
                     // decrement their dependency count.
                     for user_inst in self.value_users[result].iter().cloned() {
                         trace!(
-                        "schedule_insts: true data dependency : result_user_inst {} for inserted inst {} dependency count before decrement for user_inst {} is {}",
+                        "schedule_insts: true data dependency : result {} of inserted inst {} dependency count before decrement for user_inst {} is {}",
                         result,
                         inserted_inst,
                         user_inst,
