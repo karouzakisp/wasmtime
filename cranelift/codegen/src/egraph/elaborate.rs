@@ -793,6 +793,9 @@ impl<'a> Elaborator<'a> {
             // Update the LUC (last-use-counts) of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
+                // TODO: an alternative for better optimization is to just add one bit for deleted
+                // and maybe do the deletion afterwards if it is necessary. This improve
+                // performance.
                 self.value_users[arg].retain(|&mut arg_user| arg_user != inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
