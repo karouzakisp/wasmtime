@@ -779,6 +779,7 @@ impl<'a> EgraphPass<'a> {
                             // We've now rewritten all uses, or will when we
                             // see them, and the instruction exists as a pure
                             // enode in the eclass, so we can remove it.
+                            trace!("-------egraph.rs : Removing {}", inst);
                             cursor.remove_inst_and_step_back();
                             self.inst_ordering_info_map[inst] = OrderingInfo {
                                 last_use_count: u8::MIN,

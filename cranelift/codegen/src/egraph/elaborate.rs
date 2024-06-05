@@ -409,52 +409,6 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    // Remove the skeleton instructions left inside the block, while also
-    // manufacturing the dependencies among them due to their original program
-    // order.
-    fn add_skeleton_dependencies(&mut self, block: Block) {
-        trace!("--- Starting skeleton dependencies pass for {} ---", block);
-        let first_inst = self.func.layout.first_inst(block);
-        let mut next_inst = first_inst;
-
-        while let Some(inst) = next_inst {
-            next_inst = self.func.layout.next_inst(inst);
-
-            // Create the dependencies among skeleton instructions.
-            trace!(
-                "add_skeleton_dependences:: dependency count before increment for inst {} is {}",
-                inst,
-                self.dependencies_count[inst]
-            );
-            self.dependencies_count[inst] += 1;
-
-            // Remove all the skeleton instructions except the last one.
-            if next_inst.is_some() {
-                self.func.layout.remove_inst(inst);
-            }
-        }
-
-        // FIXME: only needed for debugging... ////////////////////////////////
-        if let Some(inst) = next_inst {
-            assert!(self.func.dfg.insts[inst].opcode().is_terminator());
-        }
-        ///////////////////////////////////////////////////////////////////////
-
-        // The first skeleton instruction has no dependency since there are no
-        // previous skeleton instructions in the block.
-        if let Some(first_inst) = first_inst {
-            trace!(
-                "add_skeleton_dependencies:: dependency count before decrement for first inst {} is {}",
-                first_inst,
-                self.dependencies_count[first_inst]
-            );
-            self.dependencies_count[first_inst] -= 1;
-            if !self.func.dfg.insts[first_inst].opcode().is_terminator() {
-                self.dependencies_count[first_inst] -= 1;
-            }
-        }
-    }
-
     /// Compute the critical path for all instructions in the given `block`, and
     /// construct the `value_users` and the `dependencies_count` maps.
     ///
@@ -462,84 +416,118 @@ impl<'a> Elaborator<'a> {
     /// dependencies after the pass.
     fn compute_ddg_and_value_users(&mut self, block: Block) {
         trace!("--- Starting DDG pass for {} ---", block);
-        assert_eq!(self.func.layout.block_insts(block).count(), 1);
-        let mut next_inst = self.func.layout.last_inst(block);
-        let block_terminator = next_inst.unwrap();
+
+        let block_terminator = self.func.layout.last_inst(block).unwrap();
+        let first_skeleton_inst = self.func.layout.first_inst(block);
+        let mut next_skeleton_inst = first_skeleton_inst;
+
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
 
-        let mut skeleton_already_inserted = false;
+        // A map used to skip skeleton instructions that we have already visited.
+        let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
-        while let Some(inst) = next_inst {
-            // A map to filter out duplicate visits in case an instruction uses
-            // the same value in multiple arguments.
-            let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
-                SecondaryMap::with_default(false);
-            for arg in self.func.dfg.inst_values(inst) {
-                // TODO: there probably exists a less expensive way to get unique args.
-                // Skip already visited arguments in case the instruction uses
-                // the same argument value multiple times. Basically, if we
-                // have `add x0, x1, x1` we don't want to add two dependencies
-                // in the instruction because of `x1`.
-                if inst_arg_already_visited[arg] {
-                    continue;
-                }
-                inst_arg_already_visited[arg] = true;
+        // Iterate over all skeleton instructions to find true data dependencies.
+        while let Some(skeleton_inst) = next_skeleton_inst {
+            next_skeleton_inst = self.func.layout.next_inst(skeleton_inst);
 
-                // Add the instruction to the value_users map of its arguments.
-                if !self.value_users[arg]
-                    .iter()
-                    .any(|&user_inst| user_inst == inst)
-                {
-                    self.value_users[arg].push(inst);
-                }
+            // Add manufacturing dependencies among them due to their original
+            // program order.
+            self.dependencies_count[skeleton_inst] += 1;
 
-                // Make sure that the argument comes from the result of an
-                // instruction inside the current block.
-                if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
-                    // Calculate the critical path for each instruction.
-                    let prev_critical_path = self.inst_ordering_info_map[arg_inst].critical_path;
-                    let current_path_size = self.inst_ordering_info_map[inst].critical_path + 1;
-                    if current_path_size > prev_critical_path {
-                        self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
-                    }
-
-                    // Construct the `dependencies_count` map.
-                    self.dependencies_count[inst] += 1;
-                    trace!(
-                        "computeDDG: dependency count after increment for inst {} is {}",
-                        inst,
-                        self.dependencies_count[inst]
-                    );
-
-                    // Push the arguments of the instruction to the instruction
-                    // queue for the breadth-first traversal of the data
-                    // dependency graph.
-                    inst_queue.push_back(arg_inst);
-                }
+            // Remove all the skeleton instructions except the last one.
+            if next_skeleton_inst.is_some() {
+                self.func.layout.remove_inst(skeleton_inst);
             }
 
-            next_inst = inst_queue.pop_front();
-            // Initialize the ready queue with all instructions that have 0 dependencies.
-            // FIXME: check special cases with skeleton instructions here
-            if self.dependencies_count[inst] == 0 && inst != block_terminator {
-                if is_pure_for_egraph(self.func, inst) {
-                    self.ready_queue
-                        .push(inst, self.inst_ordering_info_map[inst]);
-                } else if Some(&inst) == self.skeleton_inst_order.front()
-                    && !skeleton_already_inserted
-                    && inst != block_terminator
-                {
-                    self.ready_queue
-                        .push(inst, self.inst_ordering_info_map[inst]);
-                    skeleton_already_inserted = true;
+            let mut next_inst = Some(skeleton_inst);
+            while let Some(inst) = next_inst {
+                if inst_already_visited[inst] {
+                    continue;
+                }
+                inst_already_visited[inst] = true;
+
+                // A map to filter out duplicate visits in case an instruction uses
+                // the same value in multiple arguments.
+                let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
+                    SecondaryMap::with_default(false);
+                for arg in self.func.dfg.inst_values(inst) {
+                    // TODO: there probably exists a less expensive way to get unique args.
+                    // Skip already visited arguments in case the instruction uses
+                    // the same argument value multiple times. Basically, if we
+                    // have `add x0, x1, x1` we don't want to add two dependencies
+                    // in the instruction because of `x1`.
+                    if inst_arg_already_visited[arg] {
+                        continue;
+                    }
+                    inst_arg_already_visited[arg] = true;
+
+                    let BestEntry(_, arg) = self.value_to_best_value[arg];
+
+                    // Add the instruction to the value_users map of its arguments.
+                    if !self.value_users[arg]
+                        .iter()
+                        .any(|&user_inst| user_inst == inst)
+                    {
+                        self.value_users[arg].push(inst);
+                    }
+
+                    // Make sure that the argument comes from the result of an
+                    // instruction inside the current block.
+                    if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                        // Calculate the critical path for each instruction.
+                        let prev_critical_path =
+                            self.inst_ordering_info_map[arg_inst].critical_path;
+                        let current_path_size = self.inst_ordering_info_map[inst].critical_path + 1;
+                        if current_path_size > prev_critical_path {
+                            self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
+                        }
+
+                        // Construct the `dependencies_count` map.
+                        self.dependencies_count[inst] += 1;
+                        trace!(
+                            "computeDDG: dependency count after increment for inst {} is {}",
+                            inst,
+                            self.dependencies_count[inst]
+                        );
+
+                        // Push the arguments of the instruction to the instruction
+                        // queue for the breadth-first traversal of the data
+                        // dependency graph.
+                        inst_queue.push_back(arg_inst);
+                    }
+                }
+
+                next_inst = inst_queue.pop_front();
+
+                // Initialize the ready queue with all instructions that have 0 dependencies.
+                // FIXME: check special cases with skeleton instructions here
+                if self.dependencies_count[inst] == 0 && inst != block_terminator {
+                    if is_pure_for_egraph(self.func, inst) {
+                        self.ready_queue
+                            .push(inst, self.inst_ordering_info_map[inst]);
+                    } else if Some(&inst) == self.skeleton_inst_order.front() {
+                        self.ready_queue
+                            .push(inst, self.inst_ordering_info_map[inst]);
+                    }
                 }
             }
         }
-        // FIXME: is this check correct?
-        // assert!(
-        //     !self.ready_queue.is_empty(),
-        //     "computeDDG: found empty ready_queue"
-        // );
+
+        // The first skeleton instruction has no dependency since there are no
+        // previous skeleton instructions in the block.
+        if let Some(first_skeleton_inst) = first_skeleton_inst {
+            trace!(
+                "DDG : Dependency count before decrement for first skeleton instruction {} is {}",
+                first_skeleton_inst,
+                self.dependencies_count[first_skeleton_inst]
+            );
+            if !self.func.dfg.insts[first_skeleton_inst]
+                .opcode()
+                .is_terminator()
+            {
+                self.dependencies_count[first_skeleton_inst] -= 1;
+            }
+        }
     }
 
     /// Put instructions back to the function's layout using the LUC and CP
@@ -860,9 +848,6 @@ impl<'a> Elaborator<'a> {
                         self.dependencies_count[user_inst]
                     );
                     self.dependencies_count[user_inst] -= 1;
-                    if self.dependencies_count[user_inst] != 0 {
-                        self.dependencies_count[user_inst] -= 1;
-                    }
                     // If the instruction has no dependencies left and is not
                     // the block terminator, try to insert it to the ready
                     // queue. The insertion will succeed only if the instruction
@@ -978,7 +963,6 @@ impl<'a> Elaborator<'a> {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
 
-                    self.add_skeleton_dependencies(block);
                     self.compute_ddg_and_value_users(block);
                     // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
