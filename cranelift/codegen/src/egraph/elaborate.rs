@@ -499,20 +499,23 @@ impl<'a> Elaborator<'a> {
                             self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
                         }
 
-                        // Construct the `dependencies_count` map.
-                        self.dependencies_count[inst] += 1;
-                        trace!(
-                            "Add one dependency to {} due to arg {}: {} -> {}",
-                            inst,
-                            arg,
-                            self.dependencies_count[inst] - 1,
-                            self.dependencies_count[inst],
-                        );
+                        if self.value_to_elaborated_value.get(&arg).is_none() {
+                            // Construct the `dependencies_count` map.
+                            self.dependencies_count[inst] += 1;
 
-                        // Push the arguments of the instruction to the instruction
-                        // queue for the breadth-first traversal of the data
-                        // dependency graph.
-                        inst_queue.push_back(arg_inst);
+                            trace!(
+                                "Add one dependency to {} due to arg {}: {} -> {}",
+                                inst,
+                                arg,
+                                self.dependencies_count[inst] - 1,
+                                self.dependencies_count[inst],
+                            );
+
+                            // Push the arguments of the instruction to the instruction
+                            // queue for the breadth-first traversal of the data
+                            // dependency graph.
+                            inst_queue.push_back(arg_inst);
+                        }
                     }
                 }
 
@@ -548,6 +551,16 @@ impl<'a> Elaborator<'a> {
                     first_skeleton_inst
                 );
                 self.dependencies_count[first_skeleton_inst] -= 1;
+
+                // Put the skeleton in the ready queue if it is indeed ready.
+                if self.dependencies_count[first_skeleton_inst] == 0
+                    && first_skeleton_inst != block_terminator
+                {
+                    self.ready_queue.push(
+                        first_skeleton_inst,
+                        self.inst_ordering_info_map[first_skeleton_inst],
+                    );
+                }
             }
         }
     }
@@ -642,6 +655,7 @@ impl<'a> Elaborator<'a> {
             // `dependencies_count` map etc. It is possible that this
             // duplication might move in the `compute_ddg_and_value_users` pass!
             trace!("Trying to insert {} before {}", inst_to_insert, before);
+            trace!("{} redudant =: {}", inst_to_insert, redundant_inst);
             if !redundant_inst {
                 inst_to_insert =
                     if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
