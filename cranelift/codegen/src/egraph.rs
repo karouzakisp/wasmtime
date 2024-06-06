@@ -933,6 +933,10 @@ impl<'a> EgraphPass<'a> {
                     gvn_map_blocks.push(block);
 
                     trace!("Processing block {}", block);
+
+                    cursor.goto_last_inst(block);
+                    let block_terminator = cursor.current_inst().unwrap();
+
                     cursor.set_position(CursorPosition::Before(block));
 
                     let mut alias_analysis_state = self.alias_analysis.block_starting_state(block);
@@ -1001,7 +1005,8 @@ impl<'a> EgraphPass<'a> {
                             };
                             inst_seq = inst_seq.wrapping_add(1);
                         } else {
-                            if ctx.optimize_skeleton_inst(inst, block) {
+                            if ctx.optimize_skeleton_inst(ctx, inst) {
+                                trace!("Skeleton {} was optimized out", inst);
                                 cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
@@ -1011,7 +1016,9 @@ impl<'a> EgraphPass<'a> {
                                     before: None,
                                 };
                                 inst_seq = inst_seq.wrapping_add(1);
-                                self.skeleton_inst_order.push_back(inst);
+                                if inst != block_terminator {
+                                    self.skeleton_inst_order.push_back(inst);
+                                }
                             }
                         }
                     }
