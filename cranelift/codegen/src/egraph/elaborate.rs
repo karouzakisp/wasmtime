@@ -415,9 +415,11 @@ impl<'a> Elaborator<'a> {
     /// It also initializes the ready queue with all instructions that have 0
     /// dependencies after the pass.
     fn compute_ddg_and_value_users(&mut self, block: Block) {
-        trace!("--- Starting DDG pass for {} ---", block);
+        trace!("------- Starting DDG pass for {} -------", block);
 
         let block_terminator = self.func.layout.last_inst(block).unwrap();
+        trace!("{} has as terminator {}", block, block_terminator);
+
         let first_skeleton_inst = self.func.layout.first_inst(block);
         let mut next_skeleton_inst = first_skeleton_inst;
 
@@ -445,6 +447,7 @@ impl<'a> Elaborator<'a> {
             while let Some(inst) = next_inst {
                 trace!("Inner loop, iterating over {}", inst);
                 if inst_already_visited[inst] {
+                    trace!("Instruction {} has already been visited, skip it!", inst);
                     next_inst = inst_queue.pop_front();
                     continue;
                 }
@@ -474,7 +477,6 @@ impl<'a> Elaborator<'a> {
                         .iter()
                         .any(|&user_inst| user_inst == inst)
                     {
-                        trace!("INSERTED {} TO THE USERS OF {}", inst, arg);
                         match self.func.dfg.value_def(arg) {
                             ValueDef::Result(inst, _) => trace!("Arg {} comes from {}", arg, inst),
                             ValueDef::Param(block, _) => {
@@ -487,6 +489,7 @@ impl<'a> Elaborator<'a> {
 
                     // Make sure that the argument comes from the result of an
                     // instruction inside the current block.
+                    // TODO: we don't check for the *current* block right now.
                     if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
                         // Calculate the critical path for each instruction.
                         let prev_critical_path =
@@ -499,9 +502,11 @@ impl<'a> Elaborator<'a> {
                         // Construct the `dependencies_count` map.
                         self.dependencies_count[inst] += 1;
                         trace!(
-                            "computeDDG: dependency count after increment for inst {} is {}",
+                            "Add one dependency to {} due to arg {}: {} -> {}",
                             inst,
-                            self.dependencies_count[inst]
+                            arg,
+                            self.dependencies_count[inst] - 1,
+                            self.dependencies_count[inst],
                         );
 
                         // Push the arguments of the instruction to the instruction
@@ -514,7 +519,6 @@ impl<'a> Elaborator<'a> {
                 next_inst = inst_queue.pop_front();
 
                 // Initialize the ready queue with all instructions that have 0 dependencies.
-                // FIXME: check special cases with skeleton instructions here
                 if self.dependencies_count[inst] == 0 && inst != block_terminator {
                     if is_pure_for_egraph(self.func, inst) {
                         self.ready_queue
@@ -539,6 +543,10 @@ impl<'a> Elaborator<'a> {
                 .opcode()
                 .is_terminator()
             {
+                trace!(
+                    "decrementing dependency on skeleton {}",
+                    first_skeleton_inst
+                );
                 self.dependencies_count[first_skeleton_inst] -= 1;
             }
         }
@@ -547,7 +555,7 @@ impl<'a> Elaborator<'a> {
     /// Put instructions back to the function's layout using the LUC and CP
     /// heuristics.
     fn schedule_insts(&mut self, block: Block) {
-        trace!("--- Starting scheduling pass for {} ---", block);
+        trace!("------- Starting scheduling pass for {} -------", block);
         // Take the block terminator. It should be the only instruction left
         // inside the block, and be a terminator.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
@@ -575,7 +583,10 @@ impl<'a> Elaborator<'a> {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
             ///////////////////////////////////////////////////////////////////
-            trace!(" ----> New ready-queue instruction: {}", inst_to_insert);
+            trace!(
+                "  _____ New ready-queue instruction: {} _____",
+                inst_to_insert
+            );
 
             // If all results of the to-be-inserted instruction have already
             // been created through instruction elaborations, we can reuse them,
@@ -630,7 +641,7 @@ impl<'a> Elaborator<'a> {
             // the `value_users` map, the ordering information, the
             // `dependencies_count` map etc. It is possible that this
             // duplication might move in the `compute_ddg_and_value_users` pass!
-            trace!("need inst {} before {}", inst_to_insert, before);
+            trace!("Trying to insert {} before {}", inst_to_insert, before);
             if !redundant_inst {
                 inst_to_insert =
                     if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
@@ -856,22 +867,18 @@ impl<'a> Elaborator<'a> {
             // layout. If any instruction ends up with zero dependencies, try to
             // insert it to the ready queue.
             if !redundant_inst {
-                trace!(
-                    "inserted inst {} has {} number of results",
-                    inserted_inst,
-                    self.func.dfg.inst_results(inserted_inst).len()
-                );
                 for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
                     // For each result, find all instructions that use it and
                     // decrement their dependency count.
                     for user_inst in self.value_users[result].iter().cloned() {
                         trace!(
-                        "schedule_insts: true data dependency : result {} of inserted inst {} dependency count before decrement for user_inst {} is {}",
-                        result,
-                        inserted_inst,
-                        user_inst,
-                        self.dependencies_count[user_inst]
-                    );
+                            "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
+                            result,
+                            inserted_inst,
+                            user_inst,
+                            self.dependencies_count[user_inst],
+                            self.dependencies_count[user_inst] - 1,
+                        );
                         self.dependencies_count[user_inst] -= 1;
                         // If the instruction has no dependencies left and is not
                         // the block terminator, try to insert it to the ready
@@ -882,9 +889,11 @@ impl<'a> Elaborator<'a> {
                         if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator
                         {
                             if is_pure_for_egraph(self.func, user_inst) {
+                                trace!("Inserting pure {} to the ready queue", user_inst);
                                 self.ready_queue
                                     .push(user_inst, self.inst_ordering_info_map[user_inst]);
-                                // FIXME: only needed for debugging... ////////////
+
+                                // FIXME: only needed for debugging... ////////
                                 assert!(
                                     !elaborated_instructions[user_inst],
                                     "We already inserted this skeleton instruction in this block through the ready queue!",
@@ -895,20 +904,35 @@ impl<'a> Elaborator<'a> {
                                 );
                                 assert!(!instruction_in_ready_queue[user_inst]);
                                 instruction_in_ready_queue[user_inst] = true;
-                                ///////////////////////////////////////////////////
+                                ///////////////////////////////////////////////
                             } else if !skeleton_already_inserted
                                 && Some(&user_inst) == self.skeleton_inst_order.front()
                             {
+                                trace!("Inserting skeleton {} to the ready queue", user_inst);
                                 self.ready_queue
                                     .push(user_inst, self.inst_ordering_info_map[user_inst]);
-                                // FIXME: only needed for debugging... ////////////
+
+                                // FIXME: only needed for debugging... ////////
                                 assert!(
-                                !elaborated_instructions[user_inst],
-                                "We already inserted this skeleton instruction in this block through the ready queue!",
-                            );
+                                    !elaborated_instructions[user_inst],
+                                    "We already inserted this skeleton instruction in this block through the ready queue!",
+                                );
                                 assert!(!instruction_in_ready_queue[user_inst]);
                                 instruction_in_ready_queue[user_inst] = true;
-                                ///////////////////////////////////////////////////
+                                ///////////////////////////////////////////////
+                            } else {
+                                trace!("While it has 0 dependencies, {} will not get put to the ready queue...", user_inst);
+                                if skeleton_already_inserted {
+                                    trace!(
+                                        "That's because this skeleton has already been inserted."
+                                    );
+                                } else {
+                                    trace!("That's because this skeleton is not in the front of the skeleton_inst_order queue.");
+                                    trace!(
+                                        "Instead, {} is blocking it.",
+                                        self.skeleton_inst_order.front().unwrap()
+                                    );
+                                }
                             }
                         }
                     }
