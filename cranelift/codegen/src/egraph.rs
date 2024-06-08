@@ -40,7 +40,6 @@ pub struct OrderingInfo {
     critical_path: u16,
     // TODO: check if the u32 type is optimal
     seq: u32,
-    before: Option<Inst>,
 }
 
 impl OrderingInfo {
@@ -49,7 +48,6 @@ impl OrderingInfo {
             last_use_count: u8::MIN,
             critical_path: u16::MIN,
             seq: u32::MAX,
-            before: None,
         }
     }
 }
@@ -1001,7 +999,6 @@ impl<'a> EgraphPass<'a> {
                                 last_use_count: u8::MIN,
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
-                                before: None,
                             };
                             inst_seq = inst_seq.wrapping_add(1);
                         } else {
@@ -1013,7 +1010,6 @@ impl<'a> EgraphPass<'a> {
                                     last_use_count: u8::MIN,
                                     critical_path: u16::MIN,
                                     seq: inst_seq,
-                                    before: None,
                                 };
                                 inst_seq = inst_seq.wrapping_add(1);
                                 if inst != block_terminator {
@@ -1201,11 +1197,11 @@ pub(crate) struct Stats {
     pub(crate) rewrite_rule_invoked: u64,
     pub(crate) rewrite_rule_results: u64,
     pub(crate) rewrite_depth_limit: u64,
-    pub(crate) elaborate_visit_node: u64,
-    pub(crate) elaborate_memoize_hit: u64,
-    pub(crate) elaborate_memoize_miss: u64,
-    pub(crate) elaborate_remat: u64,
-    pub(crate) elaborate_licm_hoist: u64,
+    pub(crate) _elaborate_visit_node: u64,
+    pub(crate) _elaborate_memoize_hit: u64,
+    pub(crate) _elaborate_memoize_miss: u64,
+    pub(crate) _elaborate_remat: u64,
+    pub(crate) _elaborate_licm_hoist: u64,
     pub(crate) elaborate_func: u64,
     pub(crate) elaborate_func_pre_insts: u64,
     pub(crate) elaborate_func_post_insts: u64,
