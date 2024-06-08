@@ -120,27 +120,27 @@ impl Ord for BestEntry {
 
 #[derive(Clone, Copy, Debug)]
 struct ElaboratedValue {
-    in_block: Block,
+    _in_block: Block,
     value: Value,
 }
 
 #[derive(Clone, Debug)]
 struct LoopStackEntry {
     /// The loop identifier.
-    lp: Loop,
+    _lp: Loop,
     /// The hoist point: a block that immediately dominates this
     /// loop. May not be an immediate predecessor, but will be a valid
     /// point to place all loop-invariant ops: they must depend only
     /// on inputs that dominate the loop, so are available at (the end
     /// of) this block.
-    hoist_block: Block,
+    _hoist_block: Block,
     /// The depth in the scope map.
-    scope_depth: u32,
+    _scope_depth: u32,
 }
 
 #[derive(Clone, Debug)]
 enum BlockStackEntry {
-    Elaborate { block: Block, idom: Option<Block> },
+    Elaborate { block: Block, _idom: Option<Block> },
     Pop,
 }
 
@@ -193,7 +193,7 @@ impl<'a> Elaborator<'a> {
 
         // Pop any loop levels we're no longer in.
         while let Some(inner_loop) = self._loop_stack.last() {
-            if self._loop_analysis.is_in_loop(block, inner_loop.lp) {
+            if self._loop_analysis.is_in_loop(block, inner_loop._lp) {
                 break;
             }
             self._loop_stack.pop();
@@ -208,13 +208,13 @@ impl<'a> Elaborator<'a> {
         if let Some(idom) = idom {
             if let Some(lp) = self._loop_analysis.is_loop_header(block) {
                 self._loop_stack.push(LoopStackEntry {
-                    lp,
+                    _lp: lp,
                     // Any code hoisted out of this loop will have code
                     // placed in `idom`, and will have def mappings
                     // inserted in to the scoped hashmap at that block's
                     // level.
-                    hoist_block: idom,
-                    scope_depth: (self.value_to_elaborated_value.depth() - 1) as u32,
+                    _hoist_block: idom,
+                    _scope_depth: (self.value_to_elaborated_value.depth() - 1) as u32,
                 });
                 trace!(
                     " -> loop header, pushing; depth now {}",
@@ -388,7 +388,7 @@ impl<'a> Elaborator<'a> {
         // would affect, e.g., adds-with-one-constant-arg, which are
         // currently rematerialized. Right now we don't do this, to
         // avoid the need for another fixpoint loop here.
-        if arg.in_block != insert_block && remat_values.contains(&arg.value) {
+        if arg._in_block != insert_block && remat_values.contains(&arg.value) {
             let new_value = match remat_copies.entry((insert_block, arg.value)) {
                 HashEntry::Occupied(o) => *o.get(),
                 HashEntry::Vacant(v) => {
@@ -402,7 +402,7 @@ impl<'a> Elaborator<'a> {
             };
             trace!("rematerialized {} as {}", arg.value, new_value);
             arg.value = new_value;
-            stats.elaborate_remat += 1;
+            stats._elaborate_remat += 1;
             true
         } else {
             false
@@ -632,8 +632,7 @@ impl<'a> Elaborator<'a> {
             //
             // NOTE: Remove the `before` field from `inst_ordering_info_map`
             // since we are now going to compute it eagerly inside here.
-            let (scope_depth, before, insert_block) = (
-                self.value_to_elaborated_value.depth(),
+            let (before, insert_block) = (
                 block_terminator,
                 self.func.layout.inst_block(block_terminator).unwrap(),
             );
@@ -724,14 +723,11 @@ impl<'a> Elaborator<'a> {
 
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
-                                in_block: insert_block,
+                                _in_block: insert_block,
                             };
                             let best_result = self.value_to_best_value[*result];
-                            self.value_to_elaborated_value.insert_if_absent_with_depth(
-                                best_result.1,
-                                elab_value,
-                                scope_depth,
-                            );
+                            self.value_to_elaborated_value
+                                .insert_if_absent(best_result.1, elab_value);
 
                             // NOTE: Understand why this is correct...
                             // Shouldn't `best_result` be `elab_value`?
@@ -752,14 +748,11 @@ impl<'a> Elaborator<'a> {
                         for &result in self.func.dfg.inst_results(inst_to_insert) {
                             let elab_value = ElaboratedValue {
                                 value: result,
-                                in_block: insert_block,
+                                _in_block: insert_block,
                             };
                             let best_result = self.value_to_best_value[result];
-                            self.value_to_elaborated_value.insert_if_absent_with_depth(
-                                best_result.1,
-                                elab_value,
-                                scope_depth,
-                            );
+                            self.value_to_elaborated_value
+                                .insert_if_absent(best_result.1, elab_value);
                             trace!(" -> inserting identity mapping for {}", result);
                         }
                         inst_to_insert
@@ -1040,12 +1033,12 @@ impl<'a> Elaborator<'a> {
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
         self.block_stack.push(BlockStackEntry::Elaborate {
             block: self.func.layout.entry_block().unwrap(),
-            idom: None,
+            _idom: None,
         });
 
         while let Some(top) = self.block_stack.pop() {
             match top {
-                BlockStackEntry::Elaborate { block, idom } => {
+                BlockStackEntry::Elaborate { block, _idom: _ } => {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
 
@@ -1063,7 +1056,7 @@ impl<'a> Elaborator<'a> {
                     for child in self.ctrl_plane.shuffled(domtree.children(block)) {
                         self.block_stack.push(BlockStackEntry::Elaborate {
                             block: child,
-                            idom: Some(block),
+                            _idom: Some(block),
                         });
                     }
                     // Reverse what we just pushed so we elaborate in
