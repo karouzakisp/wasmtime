@@ -499,23 +499,32 @@ impl<'a> Elaborator<'a> {
                             self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
                         }
 
-                        if self.value_to_elaborated_value.get(&arg).is_none() {
-                            // Construct the `dependencies_count` map.
-                            self.dependencies_count[inst] += 1;
+                        //if self.value_to_elaborated_value.get(&arg).is_none() {
+                        // Construct the `dependencies_count` map.
+                        self.dependencies_count[inst] += 1;
 
+                        trace!(
+                            "Add one dependency to {} due to arg {}: {} -> {}",
+                            inst,
+                            arg,
+                            self.dependencies_count[inst] - 1,
+                            self.dependencies_count[inst],
+                        );
+
+                        // Push the arguments of the instruction to the instruction
+                        // queue for the breadth-first traversal of the data
+                        // dependency graph.
+                        inst_queue.push_back(arg_inst);
+                        //}
+                        /*else {
+                            // FIXME: Why we cannot add dependency here?
                             trace!(
-                                "Add one dependency to {} due to arg {}: {} -> {}",
+                                "Cannot add one dependency to {} due to elab arg {} from inst {}",
                                 inst,
                                 arg,
-                                self.dependencies_count[inst] - 1,
-                                self.dependencies_count[inst],
+                                arg_inst
                             );
-
-                            // Push the arguments of the instruction to the instruction
-                            // queue for the breadth-first traversal of the data
-                            // dependency graph.
-                            inst_queue.push_back(arg_inst);
-                        }
+                        }*/
                     }
                 }
 
@@ -662,7 +671,8 @@ impl<'a> Elaborator<'a> {
                         // Clone the inst!
                         let new_inst = self.func.dfg.clone_inst(inst_to_insert);
 
-                        // FIXME: CHECK again self.dependencies_count[new_inst] = self.dependencies_count[inst_to_insert];
+                        // FIXME: check if this is correct.
+                        self.dependencies_count[new_inst] = self.dependencies_count[inst_to_insert];
 
                         trace!(
                             " -> inst {} already has a location; cloned to {}",
@@ -694,6 +704,12 @@ impl<'a> Elaborator<'a> {
                             for user_inst in self.value_users[*result].iter().cloned() {
                                 let user_args: Vec<_> =
                                     self.func.dfg.inst_values(user_inst).into_iter().collect();
+                                trace!(
+                                    "Overwriting {} arguments with new result {}",
+                                    user_inst,
+                                    new_result
+                                );
+                                // NOTE:: do we need to do something with depencency count?
                                 self.func.dfg.overwrite_inst_values(
                                     user_inst,
                                     user_args.into_iter().map(|user_arg| {
@@ -755,6 +771,12 @@ impl<'a> Elaborator<'a> {
                     .inst_values(inst_to_insert)
                     .map(|arg| {
                         let best_value = self.value_to_best_value[arg].1;
+                        trace!(
+                            "Getting best value for inst {} with arg {} to best_arg {}",
+                            inst_to_insert,
+                            arg,
+                            best_value
+                        );
                         match self.func.dfg.value_def(best_value) {
                             ValueDef::Union(..) => {
                                 panic!("egraph union node found at line 725!");
@@ -886,12 +908,11 @@ impl<'a> Elaborator<'a> {
                     // decrement their dependency count.
                     for user_inst in self.value_users[result].iter().cloned() {
                         trace!(
-                            "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
+                            "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {}",
                             result,
                             inserted_inst,
                             user_inst,
                             self.dependencies_count[user_inst],
-                            self.dependencies_count[user_inst] - 1,
                         );
                         self.dependencies_count[user_inst] -= 1;
                         // If the instruction has no dependencies left and is not
