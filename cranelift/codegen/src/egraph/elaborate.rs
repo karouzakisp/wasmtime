@@ -69,7 +69,7 @@ pub(crate) struct Elaborator<'a> {
     inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
     /// A queue that is used to indicate the original program order
     /// of the skeleton instructions.
-    skeleton_inst_order: &'a mut VecDeque<Inst>,
+    skeleton_inst_order: VecDeque<Inst>,
     /// A map from each Value to the instructions that use it.
     value_users: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
     /// A map that tracks how many dependencies (either true data dependencies
@@ -151,7 +151,6 @@ impl<'a> Elaborator<'a> {
         loop_analysis: &'a LoopAnalysis,
         remat_values: &'a FxHashSet<Value>,
         inst_ordering_info_map: &'a mut SecondaryMap<Inst, OrderingInfo>,
-        skeleton_inst_order: &'a mut VecDeque<Inst>,
         stats: &'a mut Stats,
         ctrl_plane: &'a mut ControlPlane,
     ) -> Self {
@@ -172,7 +171,7 @@ impl<'a> Elaborator<'a> {
             block_stack: vec![],
             _remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
-            skeleton_inst_order,
+            skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
             value_users: SecondaryMap::with_default(SmallVec::new()),
             ready_queue: RankPairingHeap::single_pass_max(),
@@ -425,14 +424,22 @@ impl<'a> Elaborator<'a> {
 
         let mut inst_queue: VecDeque<Inst> = VecDeque::new();
 
+        self.skeleton_inst_order.drain(..);
+
         // A map used to skip skeleton instructions that we have already visited.
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
-            next_skeleton_inst = self.func.layout.next_inst(skeleton_inst);
-
             trace!("Outer loop, iterating over skeleton {}", skeleton_inst);
+
+            // Retain the original program order of skeleton instructions.
+            if skeleton_inst != block_terminator {
+                self.skeleton_inst_order.push_back(skeleton_inst);
+            }
+
+            // Prepare the next skeleton instruction.
+            next_skeleton_inst = self.func.layout.next_inst(skeleton_inst);
 
             // Add manufacturing dependencies among them due to their original
             // program order.
@@ -446,6 +453,7 @@ impl<'a> Elaborator<'a> {
             let mut next_inst = Some(skeleton_inst);
             while let Some(inst) = next_inst {
                 trace!("Inner loop, iterating over {}", inst);
+
                 if inst_already_visited[inst] {
                     trace!("Instruction {} has already been visited, skip it!", inst);
                     next_inst = inst_queue.pop_front();
