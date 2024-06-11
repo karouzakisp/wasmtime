@@ -173,7 +173,7 @@ impl<'a> Elaborator<'a> {
             inst_ordering_info_map,
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
-            value_users: SecondaryMap::with_default(SmallVec::new()),
+            value_users: SecondaryMap::new(),
             ready_queue: RankPairingHeap::single_pass_max(),
             stats,
             ctrl_plane,
@@ -430,7 +430,8 @@ impl<'a> Elaborator<'a> {
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
-        self.value_users.clear();
+        // NOTE: this might be unecessary since it might always end up empty here.
+        SecondaryMap::clear(&mut self.value_users);
 
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
@@ -692,28 +693,6 @@ impl<'a> Elaborator<'a> {
                                 .filter(|&inst| self.func.layout.inst_block(*inst) != Some(block))
                                 .cloned()
                                 .collect();
-                            // Overwrite the arguments of the users of each old result with
-                            // the respective new result.
-                            for user_inst in self.value_users[*result].iter().cloned() {
-                                let user_args: Vec<_> =
-                                    self.func.dfg.inst_values(user_inst).into_iter().collect();
-                                trace!(
-                                    "Overwriting {} arguments with new result {}",
-                                    user_inst,
-                                    new_result
-                                );
-                                // NOTE:: do we need to do something with depencency count?
-                                self.func.dfg.overwrite_inst_values(
-                                    user_inst,
-                                    user_args.into_iter().map(|user_arg| {
-                                        if user_arg == *result {
-                                            *new_result
-                                        } else {
-                                            user_arg
-                                        }
-                                    }),
-                                );
-                            }
 
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
