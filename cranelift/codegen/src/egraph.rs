@@ -127,9 +127,6 @@ pub struct EgraphPass<'a> {
     /// original program order sequence and information for the LICM
     /// optimization).
     inst_ordering_info_map: SecondaryMap<Inst, OrderingInfo>,
-    /// A queue that is used to indicate the original program order
-    /// of the skeleton Instructions.
-    skeleton_inst_order: VecDeque<Inst>,
     /// Stats collected while we run this pass.
     pub(crate) stats: Stats,
     /// Union-find that maps all members of a Union tree (eclass) back
@@ -586,7 +583,6 @@ impl<'a> EgraphPass<'a> {
             eclasses: UnionFind::with_capacity(num_values),
             remat_values: FxHashSet::default(),
             inst_ordering_info_map: SecondaryMap::with_default(OrderingInfo::reserved_value()),
-            skeleton_inst_order: VecDeque::new(),
         }
     }
 
@@ -800,9 +796,6 @@ impl<'a> EgraphPass<'a> {
                                     seq: inst_seq,
                                 };
                                 inst_seq = inst_seq.wrapping_add(1);
-                                if inst != block_terminator {
-                                    self.skeleton_inst_order.push_back(inst);
-                                }
                             }
                         }
                     }
@@ -844,7 +837,6 @@ impl<'a> EgraphPass<'a> {
             self.loop_analysis,
             &mut self.remat_values,
             &mut self.inst_ordering_info_map,
-            &mut self.skeleton_inst_order,
             &mut self.stats,
             self.ctrl_plane,
         );
