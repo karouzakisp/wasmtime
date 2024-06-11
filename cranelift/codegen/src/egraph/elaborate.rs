@@ -429,6 +429,9 @@ impl<'a> Elaborator<'a> {
         // A map used to skip skeleton instructions that we have already visited.
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
+        // Clear the `value_users` map. We need to reconstruct it for the current block.
+        self.value_users.clear();
+
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
             trace!("Outer loop, iterating over skeleton {}", skeleton_inst);
@@ -544,9 +547,10 @@ impl<'a> Elaborator<'a> {
         // previous skeleton instructions in the block.
         if let Some(first_skeleton_inst) = first_skeleton_inst {
             trace!(
-                "DDG : Dependency count before decrement for first skeleton instruction {} is {}",
+                "Decrement the dependency count of the first skeleton instruction {}: {} -> {}",
                 first_skeleton_inst,
-                self.dependencies_count[first_skeleton_inst]
+                self.dependencies_count[first_skeleton_inst],
+                self.dependencies_count[first_skeleton_inst] as i64 - 1,
             );
             if !self.func.dfg.insts[first_skeleton_inst]
                 .opcode()
@@ -582,16 +586,12 @@ impl<'a> Elaborator<'a> {
         assert!(self.func.dfg.insts[block_terminator]
             .opcode()
             .is_terminator());
+
         // FIXME: only needed for debugging... ////////////////////////////////
         let mut elaborated_instructions: SecondaryMap<Inst, bool> =
             SecondaryMap::with_default(false);
         let mut instruction_in_ready_queue: SecondaryMap<Inst, bool> =
             SecondaryMap::with_default(false);
-        // FIXME: is this check correct?
-        // assert!(
-        //     !self.ready_queue.is_empty(),
-        //     "schedule_insts: found empty ready_queue"
-        // );
         ///////////////////////////////////////////////////////////////////////
 
         // NOTE: The ready queue can only be empty here if (and only if) the
@@ -766,7 +766,7 @@ impl<'a> Elaborator<'a> {
                         );
                         match self.func.dfg.value_def(best_value) {
                             ValueDef::Union(..) => {
-                                panic!("egraph union node found at line 725!");
+                                panic!("egraph union node found!");
                             }
                             _ => {}
                         };
@@ -779,7 +779,7 @@ impl<'a> Elaborator<'a> {
                                     .value;
                                 match self.func.dfg.value_def(elab_value) {
                                     ValueDef::Union(..) => {
-                                        panic!("egraph union node found at line 734!");
+                                        panic!("egraph union node found!");
                                     }
                                     _ => {}
                                 };
@@ -860,9 +860,11 @@ impl<'a> Elaborator<'a> {
                 if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
                     let next_skeleton_inst = next_skeleton_inst.clone();
                     trace!(
-                        "schedule_insts: skeleton result_user_inst dependency count before decrement for inst {} is {}",
+                        "Skeleton {} was just inserted. Decrement the DC of the next skeleton {}: {} -> {}",
+                        inserted_inst,
                         next_skeleton_inst,
-                        self.dependencies_count[next_skeleton_inst]
+                        self.dependencies_count[next_skeleton_inst],
+                        self.dependencies_count[next_skeleton_inst] as i64 - 1,
                     );
                     self.dependencies_count[next_skeleton_inst] -= 1;
                     if self.dependencies_count[next_skeleton_inst] == 0
@@ -894,12 +896,13 @@ impl<'a> Elaborator<'a> {
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
                     trace!(
-                            "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {}",
-                            result,
-                            inserted_inst,
-                            user_inst,
-                            self.dependencies_count[user_inst],
-                        );
+                        "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
+                        result,
+                        inserted_inst,
+                        user_inst,
+                        self.dependencies_count[user_inst],
+                        self.dependencies_count[user_inst] as i64 - 1,
+                    );
                     self.dependencies_count[user_inst] -= 1;
 
                     // If the instruction has no dependencies left and is not
@@ -916,12 +919,13 @@ impl<'a> Elaborator<'a> {
 
                             // FIXME: only needed for debugging... ////////
                             assert!(
-                                    !elaborated_instructions[user_inst],
-                                    "We already inserted this skeleton instruction in this block through the ready queue!",
-                                );
+                                !elaborated_instructions[user_inst],
+                                "We already inserted this skeleton instruction in this block through the ready queue!",
+                            );
                             assert!(
                                 user_inst != inserted_inst,
-                                "We already have inserted inst to the layout"
+                                "We have already inserted {} to the layout!",
+                                user_inst
                             );
                             assert!(!instruction_in_ready_queue[user_inst]);
                             instruction_in_ready_queue[user_inst] = true;
@@ -935,9 +939,9 @@ impl<'a> Elaborator<'a> {
 
                             // FIXME: only needed for debugging... ////////
                             assert!(
-                                    !elaborated_instructions[user_inst],
-                                    "We already inserted this skeleton instruction in this block through the ready queue!",
-                                );
+                                !elaborated_instructions[user_inst],
+                                "We already inserted this skeleton instruction in this block through the ready queue!",
+                            );
                             assert!(!instruction_in_ready_queue[user_inst]);
                             instruction_in_ready_queue[user_inst] = true;
                             ///////////////////////////////////////////////
@@ -946,7 +950,7 @@ impl<'a> Elaborator<'a> {
                             if skeleton_already_inserted {
                                 trace!("That's because this skeleton has already been inserted.");
                             } else {
-                                trace!("That's because this skeleton is not in the front of the skeleton_inst_order queue.");
+                                trace!("That's probably because this skeleton is not in the front of the skeleton_inst_order queue.");
                                 trace!(
                                     "Instead, {} is blocking it.",
                                     self.skeleton_inst_order.front().unwrap()
@@ -972,7 +976,7 @@ impl<'a> Elaborator<'a> {
                 );
                 match self.func.dfg.value_def(best_value) {
                     ValueDef::Union(..) => {
-                        panic!("egraph union node found at line 725!");
+                        panic!("egraph union node found!");
                     }
                     _ => {}
                 };
@@ -985,7 +989,7 @@ impl<'a> Elaborator<'a> {
                             .value;
                         match self.func.dfg.value_def(elab_value) {
                             ValueDef::Union(..) => {
-                                panic!("egraph union node found at line 734!");
+                                panic!("egraph union node found!");
                             }
                             _ => {}
                         };
