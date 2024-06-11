@@ -710,9 +710,6 @@ impl<'a> EgraphPass<'a> {
 
                     trace!("Processing block {}", block);
 
-                    cursor.goto_last_inst(block);
-                    let block_terminator = cursor.current_inst().unwrap();
-
                     cursor.set_position(CursorPosition::Before(block));
 
                     let mut alias_analysis_state = self.alias_analysis.block_starting_state(block);
