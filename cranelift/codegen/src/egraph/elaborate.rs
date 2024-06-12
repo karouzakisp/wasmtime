@@ -585,9 +585,11 @@ impl<'a> Elaborator<'a> {
         // inside the block, and be a terminator.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
         assert_eq!(self.func.layout.block_insts(block).count(), 1);
-        assert!(self.func.dfg.insts[block_terminator]
-            .opcode()
-            .is_terminator());
+        assert!(
+            self.func.dfg.insts[block_terminator]
+                .opcode()
+                .is_terminator()
+        );
 
         // FIXME: only needed for debugging... ////////////////////////////////
         let mut elaborated_instructions: SecondaryMap<Inst, bool> =
@@ -692,11 +694,7 @@ impl<'a> Elaborator<'a> {
                         for (result, new_result) in result_pairs.iter() {
                             // Clone the value_users for each newly-generated result using the maps
                             // from the old results.
-                            self.value_users[*new_result] = self.value_users[*result]
-                                .iter()
-                                .filter(|&inst| self.func.layout.inst_block(*inst) != Some(block))
-                                .cloned()
-                                .collect();
+                            self.value_users[*new_result] = self.value_users[*result].clone();
 
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
@@ -845,20 +843,11 @@ impl<'a> Elaborator<'a> {
                 if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
                     let next_skeleton_inst = next_skeleton_inst.clone();
                     trace!(
-<<<<<<< HEAD
-                        "schedule_insts: skeleton result_user_inst dependency count before decrement for inst {} is {}",
-                        next_skeleton_inst, self.dependencies_count[next_skeleton_inst]
-||||||| parent of 9e2d7aa48 ([WIP] — transformed overflow errors to no-block errors)
-                        "schedule_insts: skeleton result_user_inst dependency count before decrement for inst {} is {}",
-                        next_skeleton_inst,
-                        self.dependencies_count[next_skeleton_inst]
-=======
                         "Skeleton {} was just inserted. Decrement the DC of the next skeleton {}: {} -> {}",
                         inserted_inst,
                         next_skeleton_inst,
                         self.dependencies_count[next_skeleton_inst],
                         self.dependencies_count[next_skeleton_inst] as i64 - 1,
->>>>>>> 9e2d7aa48 ([WIP] — transformed overflow errors to no-block errors)
                     );
                     self.dependencies_count[next_skeleton_inst] -= 1;
                     if self.dependencies_count[next_skeleton_inst] == 0
@@ -947,7 +936,9 @@ impl<'a> Elaborator<'a> {
                             if skeleton_already_inserted {
                                 trace!("That's because this skeleton has already been inserted.");
                             } else {
-                                trace!("That's probably because this skeleton comes from an already-elaborated block.");
+                                trace!(
+                                    "That's probably because this skeleton comes from an already-elaborated block."
+                                );
                                 assert_ne!(self.func.layout.inst_block(user_inst), Some(block));
                             }
                         }
@@ -963,29 +954,13 @@ impl<'a> Elaborator<'a> {
             .inst_values(block_terminator)
             .map(|arg| {
                 let best_value = self.value_to_best_value[arg].1;
-                trace!(
-                    " -> Terminator elab arg {} is best value is {}",
-                    arg, best_value
-                );
-                match self.func.dfg.value_def(best_value) {
-                    ValueDef::Union(..) => {
-                        panic!("egraph union node found!");
-                    }
-                    _ => {}
-                };
-                if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                     if self.func.layout.inst_block(arg_inst).is_some() {
                         let elab_value = self
                             .value_to_elaborated_value
                             .get(ctx, &best_value)
                             .unwrap()
                             .value;
-                        match self.func.dfg.value_def(elab_value) {
-                            ValueDef::Union(..) => {
-                                panic!("egraph union node found!");
-                            }
-                            _ => {}
-                        };
                         elab_value
                     } else {
                         best_value
@@ -1001,6 +976,7 @@ impl<'a> Elaborator<'a> {
             .overwrite_inst_values(block_terminator, terminator_elab_args.into_iter());
 
         // Remove the block terminator from its arguments' value users sets.
+        // NOTE: possibly unnecessary?
         for arg in self.func.dfg.inst_values(block_terminator) {
             self.value_users[arg].retain(|&mut arg_user| arg_user != block_terminator);
         }
