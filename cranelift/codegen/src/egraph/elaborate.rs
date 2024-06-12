@@ -499,33 +499,37 @@ impl<'a> Elaborator<'a> {
                         self.value_users[arg].push(inst);
                     }
 
-                    // Make sure that the argument comes from the result of an
-                    // instruction inside the current block.
-                    // TODO: we don't check for the *current* block right now.
+                    // Make sure that the argument comes from an instruction result.
+                    // NOTE: Should we check the block of the instruction here?
                     if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
-                        // Calculate the critical path for each instruction.
-                        let prev_critical_path =
-                            self.inst_ordering_info_map[arg_inst].critical_path;
-                        let current_path_size = self.inst_ordering_info_map[inst].critical_path + 1;
-                        if current_path_size > prev_critical_path {
-                            self.inst_ordering_info_map[arg_inst].critical_path = current_path_size;
+                        // Check if we have the argument already elaborated.
+                        if self.value_to_elaborated_value.get(&arg).is_none() {
+                            // Calculate the critical path for each instruction.
+                            let prev_critical_path =
+                                self.inst_ordering_info_map[arg_inst].critical_path;
+                            let current_path_size =
+                                self.inst_ordering_info_map[inst].critical_path + 1;
+                            if current_path_size > prev_critical_path {
+                                self.inst_ordering_info_map[arg_inst].critical_path =
+                                    current_path_size;
+                            }
+
+                            // Construct the `dependencies_count` map.
+                            self.dependencies_count[inst] += 1;
+
+                            trace!(
+                                "Add one dependency to {} due to arg {}: {} -> {}",
+                                inst,
+                                arg,
+                                self.dependencies_count[inst] - 1,
+                                self.dependencies_count[inst],
+                            );
+
+                            // Push the arguments of the instruction to the instruction
+                            // queue for the breadth-first traversal of the data
+                            // dependency graph.
+                            inst_queue.push_back(arg_inst);
                         }
-
-                        // Construct the `dependencies_count` map.
-                        self.dependencies_count[inst] += 1;
-
-                        trace!(
-                            "Add one dependency to {} due to arg {}: {} -> {}",
-                            inst,
-                            arg,
-                            self.dependencies_count[inst] - 1,
-                            self.dependencies_count[inst],
-                        );
-
-                        // Push the arguments of the instruction to the instruction
-                        // queue for the breadth-first traversal of the data
-                        // dependency graph.
-                        inst_queue.push_back(arg_inst);
                     }
                 }
 
@@ -547,19 +551,15 @@ impl<'a> Elaborator<'a> {
         // The first skeleton instruction has no dependency since there are no
         // previous skeleton instructions in the block.
         if let Some(first_skeleton_inst) = first_skeleton_inst {
-            trace!(
-                "Decrement the dependency count of the first skeleton instruction {}: {} -> {}",
-                first_skeleton_inst,
-                self.dependencies_count[first_skeleton_inst],
-                self.dependencies_count[first_skeleton_inst] as i64 - 1,
-            );
             if !self.func.dfg.insts[first_skeleton_inst]
                 .opcode()
                 .is_terminator()
             {
                 trace!(
-                    "decrementing dependency on skeleton {}",
-                    first_skeleton_inst
+                    "Decrement the dependency count of the first skeleton instruction {}: {} -> {}",
+                    first_skeleton_inst,
+                    self.dependencies_count[first_skeleton_inst],
+                    self.dependencies_count[first_skeleton_inst] as i64 - 1,
                 );
                 self.dependencies_count[first_skeleton_inst] -= 1;
 
