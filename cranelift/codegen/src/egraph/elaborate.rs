@@ -929,11 +929,8 @@ impl<'a> Elaborator<'a> {
                             if skeleton_already_inserted {
                                 trace!("That's because this skeleton has already been inserted.");
                             } else {
-                                trace!("That's probably because this skeleton is not in the front of the skeleton_inst_order queue.");
-                                trace!(
-                                    "Instead, {} is blocking it.",
-                                    self.skeleton_inst_order.front().unwrap()
-                                );
+                                trace!("That's probably because this skeleton comes from an already-elaborated block.");
+                                assert_ne!(self.func.layout.inst_block(user_inst), Some(block));
                             }
                         }
                     }
