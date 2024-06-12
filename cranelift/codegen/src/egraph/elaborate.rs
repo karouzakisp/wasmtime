@@ -688,11 +688,7 @@ impl<'a> Elaborator<'a> {
                         for (result, new_result) in result_pairs.iter() {
                             // Clone the value_users for each newly-generated result using the maps
                             // from the old results.
-                            self.value_users[*new_result] = self.value_users[*result]
-                                .iter()
-                                .filter(|&inst| self.func.layout.inst_block(*inst) != Some(block))
-                                .cloned()
-                                .collect();
+                            self.value_users[*new_result] = self.value_users[*result].clone();
 
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
@@ -945,30 +941,13 @@ impl<'a> Elaborator<'a> {
             .inst_values(block_terminator)
             .map(|arg| {
                 let best_value = self.value_to_best_value[arg].1;
-                trace!(
-                    " -> Terminator elab arg {} is best value is {}",
-                    arg,
-                    best_value
-                );
-                match self.func.dfg.value_def(best_value) {
-                    ValueDef::Union(..) => {
-                        panic!("egraph union node found!");
-                    }
-                    _ => {}
-                };
-                if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                     if self.func.layout.inst_block(arg_inst).is_some() {
                         let elab_value = self
                             .value_to_elaborated_value
                             .get(&best_value)
                             .unwrap()
                             .value;
-                        match self.func.dfg.value_def(elab_value) {
-                            ValueDef::Union(..) => {
-                                panic!("egraph union node found!");
-                            }
-                            _ => {}
-                        };
                         elab_value
                     } else {
                         best_value
@@ -984,6 +963,7 @@ impl<'a> Elaborator<'a> {
             .overwrite_inst_values(block_terminator, terminator_elab_args.into_iter());
 
         // Remove the block terminator from its arguments' value users sets.
+        // NOTE: possibly unnecessary?
         for arg in self.func.dfg.inst_values(block_terminator) {
             self.value_users[arg].retain(|&mut arg_user| arg_user != block_terminator);
         }
