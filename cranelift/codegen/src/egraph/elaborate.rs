@@ -745,7 +745,7 @@ impl<'a> Elaborator<'a> {
                             }
                             _ => {}
                         };
-                        if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                        if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                             if self.func.layout.inst_block(arg_inst).is_some() {
                                 let elab_value = self
                                     .value_to_elaborated_value
