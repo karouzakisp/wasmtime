@@ -50,7 +50,7 @@ cranelift-codegen-meta = { path = "meta", version = "0.109.0" }
 cranelift-isle = { path = "../isle/isle", version = "=0.109.0" }
 
 [features]
-default = ["std", "unwind", "host-arch", "timing", "trace-log"]
+default = ["std", "unwind", "host-arch", "timing"]
 
 # The "std" feature enables use of libstd. The "core" feature enables use
 # of some minimal std-like replacement libraries. At least one of these two
@@ -83,19 +83,28 @@ riscv64 = []
 host-arch = []
 
 # Option to enable all architectures.
-all-arch = ["x86", "arm64", "s390x", "riscv64"]
+all-arch = [
+    "x86",
+    "arm64",
+    "s390x",
+    "riscv64"
+]
 
-# For dependent crates that want to serialize some parts of cranelift
+# For dependent crates that want to serialize some parts of cranelift.
 enable-serde = [
-  "serde",
-  "serde_derive",
-  "cranelift-entity/enable-serde",
-  "regalloc2/enable-serde",
-  "smallvec/serde",
+    "serde",
+    "serde_derive",
+    "cranelift-entity/enable-serde",
+    "regalloc2/enable-serde",
+    "smallvec/serde"
 ]
 
 # Enable the incremental compilation cache for hot-reload use cases.
-incremental-cache = ["enable-serde", "postcard", "sha2"]
+incremental-cache = [
+    "enable-serde",
+    "postcard",
+    "sha2"
+]
 
 # Enable support for the Souper harvester.
 souper-harvest = ["souper-ir", "souper-ir/stringify"]
