@@ -1,0 +1,1894 @@
+test optimize precise-output
+set opt_level=speed
+target x86_64
+
+function u0:9(i64 vmctx, i64, i32, i32) fast {
+    gv0 = vmctx
+    gv1 = load.i64 notrap aligned readonly gv0+8
+    gv2 = load.i64 notrap aligned gv1
+    gv3 = vmctx
+    gv4 = load.i64 notrap aligned readonly checked gv3+304
+    sig0 = (i64 vmctx, i64, i32, i32, i32, i64, i32, i32) fast
+    sig1 = (i64 vmctx, i64, i32, i32, i32) -> i32 fast
+    sig2 = (i64 vmctx, i64, i32, i32, i32, i64, i32) fast
+    fn0 = colocated u0:12 sig0
+    fn1 = colocated u0:43 sig1
+    fn2 = colocated u0:11 sig2
+    const0 = 0x00000000000000000000000000000000
+    stack_limit = gv2
+
+                                block0(v0: i64, v1: i64, v2: i32, v3: i32):
+                                    v337 -> v2
+                                    v716 -> v2
+                                    v1142 -> v3
+                                    v1143 -> v3
+                                    v1144 -> v3
+@131f                               v4 = iconst.i32 0
+@1321                               v5 = iconst.i64 0
+@1323                               v6 = vconst.i8x16 const0
+@1325                               v7 = iconst.i32 32
+                                    v1145 -> v7
+                                    v1146 -> v7
+                                    v1147 -> v7
+@1329                               v8 = global_value.i64 gv3
+@1329                               v9 = load.i32 notrap aligned table v8+320
+@132b                               v10 = iconst.i32 208
+@132e                               v11 = isub v9, v10  ; v10 = 208
+                                    v134 -> v11
+                                    v273 -> v11
+                                    v715 -> v11
+                                    v1094 -> v11
+                                    v1097 -> v11
+                                    v1148 -> v11
+@1331                               v12 = global_value.i64 gv3
+@1331                               store notrap aligned table v11, v12+320
+@1337                               v13 = uextend.i64 v2
+@1337                               v14 = global_value.i64 gv4
+@1337                               v15 = iadd v14, v13
+@1337                               v16 = iconst.i64 144
+@1337                               v17 = iadd v15, v16  ; v16 = 144
+@1337                               v18 = uload8.i32 little heap v17
+@133d                               v19 = icmp_imm eq v18, 0
+@133d                               v20 = uextend.i32 v19
+@133e                               brif v20, block3, block4
+
+                                block3:
+@1342                               v21 = uextend.i64 v2
+@1342                               v22 = global_value.i64 gv4
+@1342                               v23 = iadd v22, v21
+@1342                               v24 = iconst.i64 138
+@1342                               v25 = iadd v23, v24  ; v24 = 138
+@1342                               v26 = uload8.i32 little heap v25
+@134a                               v27 = uextend.i64 v2
+@134a                               v28 = global_value.i64 gv4
+@134a                               v29 = iadd v28, v27
+@134a                               v30 = iconst.i64 137
+@134a                               v31 = iadd v29, v30  ; v30 = 137
+@134a                               v32 = uload8.i32 little heap v31
+@1352                               v33 = uextend.i64 v2
+@1352                               v34 = global_value.i64 gv4
+@1352                               v35 = iadd v34, v33
+@1352                               v36 = iconst.i64 136
+@1352                               v37 = iadd v35, v36  ; v36 = 136
+@1352                               v38 = uload8.i32 little heap v37
+@135a                               v39 = iconst.i32 0xffff_ffc0
+@135c                               v40 = isub.i32 v2, v39  ; v39 = 0xffff_ffc0
+@135d                               v41 = uextend.i64 v40
+@135d                               v42 = global_value.i64 gv4
+@135d                               v43 = iadd v42, v41
+@135d                               v44 = load.i64 little heap v43
+@1366                               v45 = uextend.i64 v2
+@1366                               v46 = global_value.i64 gv4
+@1366                               v47 = iadd v46, v45
+@1366                               v48 = iconst.i64 48
+@1366                               v49 = iadd v47, v48  ; v48 = 48
+@1366                               v50 = load.i8x16 little heap v49
+@136a                               v51 = uextend.i64 v11
+@136a                               v52 = global_value.i64 gv4
+@136a                               v53 = iadd v52, v51
+@136a                               v54 = iconst.i64 48
+@136a                               v55 = iadd v53, v54  ; v54 = 48
+@136a                               store little heap v50, v55
+@1372                               v56 = uextend.i64 v2
+@1372                               v57 = global_value.i64 gv4
+@1372                               v58 = iadd v57, v56
+@1372                               v59 = iconst.i64 32
+@1372                               v60 = iadd v58, v59  ; v59 = 32
+@1372                               v61 = load.i8x16 little heap v60
+@1376                               v62 = uextend.i64 v11
+@1376                               v63 = global_value.i64 gv4
+@1376                               v64 = iadd v63, v62
+@1376                               v65 = iconst.i64 32
+@1376                               v66 = iadd v64, v65  ; v65 = 32
+@1376                               store little heap v61, v66
+@137e                               v67 = uextend.i64 v2
+@137e                               v68 = global_value.i64 gv4
+@137e                               v69 = iadd v68, v67
+@137e                               v70 = iconst.i64 88
+@137e                               v71 = iadd v69, v70  ; v70 = 88
+@137e                               v72 = load.i8x16 little heap v71
+@1382                               v73 = uextend.i64 v11
+@1382                               v74 = global_value.i64 gv4
+@1382                               v75 = iadd v74, v73
+@1382                               v76 = iconst.i64 88
+@1382                               v77 = iadd v75, v76  ; v76 = 88
+@1382                               store little heap v72, v77
+@138a                               v78 = uextend.i64 v2
+@138a                               v79 = global_value.i64 gv4
+@138a                               v80 = iadd v79, v78
+@138a                               v81 = iconst.i64 104
+@138a                               v82 = iadd v80, v81  ; v81 = 104
+@138a                               v83 = load.i8x16 little heap v82
+@138e                               v84 = uextend.i64 v11
+@138e                               v85 = global_value.i64 gv4
+@138e                               v86 = iadd v85, v84
+@138e                               v87 = iconst.i64 104
+@138e                               v88 = iadd v86, v87  ; v87 = 104
+@138e                               store little heap v83, v88
+@1396                               v89 = uextend.i64 v2
+@1396                               v90 = global_value.i64 gv4
+@1396                               v91 = iadd v90, v89
+@1396                               v92 = iconst.i64 120
+@1396                               v93 = iadd v91, v92  ; v92 = 120
+@1396                               v94 = load.i8x16 little heap v93
+@139a                               v95 = uextend.i64 v11
+@139a                               v96 = global_value.i64 gv4
+@139a                               v97 = iadd v96, v95
+@139a                               v98 = iconst.i64 120
+@139a                               v99 = iadd v97, v98  ; v98 = 120
+@139a                               store little heap v94, v99
+@13a2                               v100 = uextend.i64 v2
+@13a2                               v101 = global_value.i64 gv4
+@13a2                               v102 = iadd v101, v100
+@13a2                               v103 = iconst.i64 72
+@13a2                               v104 = iadd v102, v103  ; v103 = 72
+@13a2                               v105 = load.i8x16 little heap v104
+@13a6                               v106 = uextend.i64 v11
+@13a6                               v107 = global_value.i64 gv4
+@13a6                               v108 = iadd v107, v106
+@13a6                               v109 = iconst.i64 72
+@13a6                               v110 = iadd v108, v109  ; v109 = 72
+@13a6                               store little heap v105, v110
+@13ae                               v111 = uextend.i64 v11
+@13ae                               v112 = global_value.i64 gv4
+@13ae                               v113 = iadd v112, v111
+@13ae                               v114 = iconst.i64 64
+@13ae                               v115 = iadd v113, v114  ; v114 = 64
+@13ae                               store little heap v44, v115
+@13b5                               v116 = uextend.i64 v11
+@13b5                               v117 = global_value.i64 gv4
+@13b5                               v118 = iadd v117, v116
+@13b5                               v119 = iconst.i64 136
+@13b5                               v120 = iadd v118, v119  ; v119 = 136
+@13b5                               istore8 little heap v38, v120
+@13bf                               v121 = icmp_imm eq v32, 0
+@13bf                               v122 = uextend.i32 v121
+@13c0                               v123 = bor v26, v122
+@13c1                               v124 = iconst.i32 2
+@13c3                               v125 = bor v123, v124  ; v124 = 2
+@13c6                               v126 = uextend.i64 v11
+@13c6                               v127 = global_value.i64 gv4
+@13c6                               v128 = iadd v127, v126
+@13c6                               v129 = iconst.i64 137
+@13c6                               v130 = iadd v128, v129  ; v129 = 137
+@13c6                               istore8 little heap v125, v130
+@13ca                               v131 = iconst.i64 0
+@13d0                               v132 = iconst.i32 72
+@13d3                               v133 = iadd.i32 v11, v132  ; v132 = 72
+                                    v137 -> v133
+@13d6                               jump block5(v38, v131, v125, v3, v7)  ; v131 = 0, v7 = 32
+
+                                block5(v138: i32, v141: i64, v142: i32, v149: i32, v153: i32):
+@13da                               v135 = iconst.i32 32
+@13dc                               v136 = iadd.i32 v134, v135  ; v135 = 32
+@13e1                               v139 = iconst.i32 255
+@13e4                               v140 = band v138, v139  ; v139 = 255
+@13e9                               v143 = iconst.i32 8
+@13eb                               v144 = bor v142, v143  ; v143 = 8
+@13ec                               v145 = iconst.i32 255
+@13ef                               v146 = band v144, v145  ; v145 = 255
+@13f2                               v147 = iconst.i32 144
+@13f5                               v148 = iadd.i32 v134, v147  ; v147 = 144
+@13f6                               call fn0(v0, v0, v136, v137, v140, v141, v146, v148)
+@13fc                               v150 = iconst.i32 144
+@13ff                               v151 = iadd.i32 v134, v150  ; v150 = 144
+@1400                               v152 = iconst.i32 64
+@1407                               v154 = iconst.i32 64
+@140a                               v155 = icmp ugt v153, v154  ; v154 = 64
+@140a                               v156 = uextend.i32 v155
+@140b                               v157 = select v156, v152, v153  ; v152 = 64
+@140e                               v158 = call fn1(v0, v0, v149, v151, v157)
+@1416                               v159 = isub v153, v157
+@1419                               v160 = icmp_imm eq v159, 0
+@1419                               v161 = uextend.i32 v160
+@141a                               brif v161, block2, block7
+
+                                block7:
+@1420                               v162 = iadd.i32 v157, v158
+@1425                               v163 = iconst.i64 1
+@1427                               v164 = iadd.i64 v141, v163  ; v163 = 1
+@142c                               v165 = uextend.i64 v134
+@142c                               v166 = global_value.i64 gv4
+@142c                               v167 = iadd v166, v165
+@142c                               v168 = iconst.i64 137
+@142c                               v169 = iadd v167, v168  ; v168 = 137
+@142c                               v170 = uload8.i32 little heap v169
+@1434                               v171 = uextend.i64 v134
+@1434                               v172 = global_value.i64 gv4
+@1434                               v173 = iadd v172, v171
+@1434                               v174 = iconst.i64 136
+@1434                               v175 = iadd v173, v174  ; v174 = 136
+@1434                               v176 = uload8.i32 little heap v175
+@143a                               jump block5(v176, v164, v170, v162, v159)
+
+                                block4:
+@1441                               v178 = iconst.i32 0
+@1445                               v179 = uextend.i64 v2
+@1445                               v180 = global_value.i64 gv4
+@1445                               v181 = iadd v180, v179
+@1445                               v182 = iconst.i64 136
+@1445                               v183 = iadd v181, v182  ; v182 = 136
+@1445                               v184 = uload8.i32 little heap v183
+@144b                               v185 = isub v178, v184  ; v178 = 0
+@144e                               v186 = uextend.i64 v2
+@144e                               v187 = global_value.i64 gv4
+@144e                               v188 = iadd v187, v186
+@144e                               v189 = iconst.i64 137
+@144e                               v190 = iadd v188, v189  ; v189 = 137
+@144e                               v191 = uload8.i32 little heap v190
+@1454                               v192 = iconst.i32 6
+@1456                               v193 = ishl v191, v192  ; v192 = 6
+@1457                               v194 = icmp ne v185, v193
+@1457                               v195 = uextend.i32 v194
+@1458                               brif v195, block9, block10
+
+                                block9:
+@145c                               v196 = iconst.i32 0xffff_ffc0
+@145e                               v197 = isub.i32 v2, v196  ; v196 = 0xffff_ffc0
+@145f                               v198 = uextend.i64 v197
+@145f                               v199 = global_value.i64 gv4
+@145f                               v200 = iadd v199, v198
+@145f                               v201 = load.i64 little heap v200
+@1466                               v202 = uextend.i64 v2
+@1466                               v203 = global_value.i64 gv4
+@1466                               v204 = iadd v203, v202
+@1466                               v205 = iconst.i64 138
+@1466                               v206 = iadd v204, v205  ; v205 = 138
+@1466                               v207 = uload8.i32 little heap v206
+@1470                               v208 = uextend.i64 v2
+@1470                               v209 = global_value.i64 gv4
+@1470                               v210 = iadd v209, v208
+@1470                               v211 = iconst.i64 48
+@1470                               v212 = iadd v210, v211  ; v211 = 48
+@1470                               v213 = load.i8x16 little heap v212
+@1474                               v214 = uextend.i64 v11
+@1474                               v215 = global_value.i64 gv4
+@1474                               v216 = iadd v215, v214
+@1474                               v217 = iconst.i64 48
+@1474                               v218 = iadd v216, v217  ; v217 = 48
+@1474                               store little heap v213, v218
+@147c                               v219 = uextend.i64 v2
+@147c                               v220 = global_value.i64 gv4
+@147c                               v221 = iadd v220, v219
+@147c                               v222 = iconst.i64 32
+@147c                               v223 = iadd v221, v222  ; v222 = 32
+@147c                               v224 = load.i8x16 little heap v223
+@1480                               v225 = uextend.i64 v11
+@1480                               v226 = global_value.i64 gv4
+@1480                               v227 = iadd v226, v225
+@1480                               v228 = iconst.i64 32
+@1480                               v229 = iadd v227, v228  ; v228 = 32
+@1480                               store little heap v224, v229
+@1486                               v230 = iconst.i32 72
+@1489                               v231 = iadd.i32 v2, v230  ; v230 = 72
+@1490                               v232 = icmp_imm.i32 eq v191, 0
+@1490                               v233 = uextend.i32 v232
+@1491                               v234 = bor v207, v233
+@1492                               v235 = iconst.i32 2
+@1494                               v236 = bor v234, v235  ; v235 = 2
+@1495                               jump block8(v236, v231, v184, v201, v18)
+
+                                block10:
+@149a                               v237 = uextend.i64 v2
+@149a                               v238 = global_value.i64 gv4
+@149a                               v239 = iadd v238, v237
+@149a                               v240 = iconst.i64 138
+@149a                               v241 = iadd v239, v240  ; v240 = 138
+@149a                               v242 = uload8.i32 little heap v241
+@14a4                               v243 = uextend.i64 v2
+@14a4                               v244 = global_value.i64 gv4
+@14a4                               v245 = iadd v244, v243
+@14a4                               v246 = iconst.i64 16
+@14a4                               v247 = iadd v245, v246  ; v246 = 16
+@14a4                               v248 = load.i8x16 little heap v247
+@14a8                               v249 = uextend.i64 v11
+@14a8                               v250 = global_value.i64 gv4
+@14a8                               v251 = iadd v250, v249
+@14a8                               v252 = iconst.i64 48
+@14a8                               v253 = iadd v251, v252  ; v252 = 48
+@14a8                               store little heap v248, v253
+@14b0                               v254 = uextend.i64 v2
+@14b0                               v255 = global_value.i64 gv4
+@14b0                               v256 = iadd v255, v254
+@14b0                               v257 = load.i8x16 little heap v256
+@14b4                               v258 = uextend.i64 v11
+@14b4                               v259 = global_value.i64 gv4
+@14b4                               v260 = iadd v259, v258
+@14b4                               v261 = iconst.i64 32
+@14b4                               v262 = iadd v260, v261  ; v261 = 32
+@14b4                               store little heap v257, v262
+@14bc                               v263 = iconst.i32 0xffff_fffe
+@14be                               v264 = iadd.i32 v18, v263  ; v263 = 0xffff_fffe
+@14c1                               v265 = iconst.i32 5
+@14c3                               v266 = ishl v264, v265  ; v265 = 5
+@14c4                               v267 = iadd.i32 v2, v266
+@14c5                               v268 = iconst.i32 145
+@14c8                               v269 = iadd v267, v268  ; v268 = 145
+@14cb                               v270 = iconst.i32 64
+@14d2                               v271 = iconst.i32 4
+@14d4                               v272 = bor v242, v271  ; v271 = 4
+@14d5                               jump block8(v272, v269, v270, v5, v264)  ; v270 = 64, v5 = 0
+
+                                block8(v177: i32, v274: i32, v322: i32, v328: i64, v334: i32):
+@14dc                               v275 = uextend.i64 v274
+@14dc                               v276 = global_value.i64 gv4
+@14dc                               v277 = iadd v276, v275
+@14dc                               v278 = iconst.i64 48
+@14dc                               v279 = iadd v277, v278  ; v278 = 48
+@14dc                               v280 = load.i8x16 little heap v279
+@14e0                               v281 = uextend.i64 v11
+@14e0                               v282 = global_value.i64 gv4
+@14e0                               v283 = iadd v282, v281
+@14e0                               v284 = iconst.i64 120
+@14e0                               v285 = iadd v283, v284  ; v284 = 120
+@14e0                               store little heap v280, v285
+@14e8                               v286 = uextend.i64 v274
+@14e8                               v287 = global_value.i64 gv4
+@14e8                               v288 = iadd v287, v286
+@14e8                               v289 = iconst.i64 32
+@14e8                               v290 = iadd v288, v289  ; v289 = 32
+@14e8                               v291 = load.i8x16 little heap v290
+@14ec                               v292 = uextend.i64 v273
+@14ec                               v293 = global_value.i64 gv4
+@14ec                               v294 = iadd v293, v292
+@14ec                               v295 = iconst.i64 104
+@14ec                               v296 = iadd v294, v295  ; v295 = 104
+@14ec                               store little heap v291, v296
+@14f4                               v297 = uextend.i64 v274
+@14f4                               v298 = global_value.i64 gv4
+@14f4                               v299 = iadd v298, v297
+@14f4                               v300 = iconst.i64 16
+@14f4                               v301 = iadd v299, v300  ; v300 = 16
+@14f4                               v302 = load.i8x16 little heap v301
+@14f8                               v303 = uextend.i64 v273
+@14f8                               v304 = global_value.i64 gv4
+@14f8                               v305 = iadd v304, v303
+@14f8                               v306 = iconst.i64 88
+@14f8                               v307 = iadd v305, v306  ; v306 = 88
+@14f8                               store little heap v302, v307
+@1500                               v308 = uextend.i64 v274
+@1500                               v309 = global_value.i64 gv4
+@1500                               v310 = iadd v309, v308
+@1500                               v311 = load.i8x16 little heap v310
+@1504                               v312 = uextend.i64 v273
+@1504                               v313 = global_value.i64 gv4
+@1504                               v314 = iadd v313, v312
+@1504                               v315 = iconst.i64 72
+@1504                               v316 = iadd v314, v315  ; v315 = 72
+@1504                               store little heap v311, v316
+@150c                               v317 = uextend.i64 v273
+@150c                               v318 = global_value.i64 gv4
+@150c                               v319 = iadd v318, v317
+@150c                               v320 = iconst.i64 137
+@150c                               v321 = iadd v319, v320  ; v320 = 137
+@150c                               istore8 little heap v177, v321
+@1514                               v323 = uextend.i64 v273
+@1514                               v324 = global_value.i64 gv4
+@1514                               v325 = iadd v324, v323
+@1514                               v326 = iconst.i64 136
+@1514                               v327 = iadd v325, v326  ; v326 = 136
+@1514                               istore8 little heap v322, v327
+@151c                               v329 = uextend.i64 v273
+@151c                               v330 = global_value.i64 gv4
+@151c                               v331 = iadd v330, v329
+@151c                               v332 = iconst.i64 64
+@151c                               v333 = iadd v331, v332  ; v332 = 64
+@151c                               store little heap v328, v333
+@1523                               v335 = icmp_imm eq v334, 0
+@1523                               v336 = uextend.i32 v335
+@1524                               brif v336, block11(v322, v177), block12
+
+                                block12:
+@152c                               v338 = iconst.i32 0xffff_ffff
+@152e                               v339 = iadd.i32 v334, v338  ; v338 = 0xffff_ffff
+@1531                               v340 = iconst.i32 5
+@1533                               v341 = ishl v339, v340  ; v340 = 5
+@1534                               v342 = iadd.i32 v2, v341
+@1537                               v343 = uextend.i64 v342
+@1537                               v344 = global_value.i64 gv4
+@1537                               v345 = iadd v344, v343
+@1537                               v346 = iconst.i64 161
+@1537                               v347 = iadd v345, v346  ; v346 = 161
+@1537                               v348 = load.i8x16 little heap v347
+@153c                               v349 = uextend.i64 v273
+@153c                               v350 = global_value.i64 gv4
+@153c                               v351 = iadd v350, v349
+@153c                               v352 = iconst.i64 16
+@153c                               v353 = iadd v351, v352  ; v352 = 16
+@153c                               store little heap v348, v353
+@1544                               v354 = uextend.i64 v342
+@1544                               v355 = global_value.i64 gv4
+@1544                               v356 = iadd v355, v354
+@1544                               v357 = iconst.i64 145
+@1544                               v358 = iadd v356, v357  ; v357 = 145
+@1544                               v359 = load.i8x16 little heap v358
+@1549                               v360 = uextend.i64 v273
+@1549                               v361 = global_value.i64 gv4
+@1549                               v362 = iadd v361, v360
+@1549                               store little heap v359, v362
+@1551                               v363 = uextend.i64 v273
+@1551                               v364 = global_value.i64 gv4
+@1551                               v365 = iadd v364, v363
+@1551                               v366 = iconst.i64 48
+@1551                               v367 = iadd v365, v366  ; v366 = 48
+@1551                               v368 = load.i8x16 little heap v367
+@1555                               v369 = uextend.i64 v273
+@1555                               v370 = global_value.i64 gv4
+@1555                               v371 = iadd v370, v369
+@1555                               v372 = iconst.i64 160
+@1555                               v373 = iadd v371, v372  ; v372 = 160
+@1555                               store little heap v368, v373
+@155e                               v374 = uextend.i64 v273
+@155e                               v375 = global_value.i64 gv4
+@155e                               v376 = iadd v375, v374
+@155e                               v377 = iconst.i64 32
+@155e                               v378 = iadd v376, v377  ; v377 = 32
+@155e                               v379 = load.i8x16 little heap v378
+@1562                               v380 = uextend.i64 v273
+@1562                               v381 = global_value.i64 gv4
+@1562                               v382 = iadd v381, v380
+@1562                               v383 = iconst.i64 144
+@1562                               v384 = iadd v382, v383  ; v383 = 144
+@1562                               store little heap v379, v384
+@1569                               v385 = iconst.i32 144
+@156c                               v386 = iadd.i32 v273, v385  ; v385 = 144
+@156f                               v387 = iconst.i32 72
+@1572                               v388 = iadd.i32 v273, v387  ; v387 = 72
+                                    v768 -> v388
+@157b                               v389 = iconst.i32 255
+@157e                               v390 = band.i32 v177, v389  ; v389 = 255
+@157f                               call fn2(v0, v0, v386, v388, v322, v328, v390)
+@1583                               v391 = uextend.i64 v273
+@1583                               v392 = global_value.i64 gv4
+@1583                               v393 = iadd v392, v391
+@1583                               v394 = iconst.i64 160
+@1583                               v395 = iadd v393, v394  ; v394 = 160
+@1583                               v396 = load.i32 little heap v395
+@158b                               v397 = uextend.i64 v273
+@158b                               v398 = global_value.i64 gv4
+@158b                               v399 = iadd v398, v397
+@158b                               v400 = iconst.i64 168
+@158b                               v401 = iadd v399, v400  ; v400 = 168
+@158b                               v402 = load.i32 little heap v401
+@1593                               v403 = uextend.i64 v273
+@1593                               v404 = global_value.i64 gv4
+@1593                               v405 = iadd v404, v403
+@1593                               v406 = iconst.i64 144
+@1593                               v407 = iadd v405, v406  ; v406 = 144
+@1593                               v408 = load.i32 little heap v407
+@159b                               v409 = uextend.i64 v273
+@159b                               v410 = global_value.i64 gv4
+@159b                               v411 = iadd v410, v409
+@159b                               v412 = iconst.i64 148
+@159b                               v413 = iadd v411, v412  ; v412 = 148
+@159b                               v414 = load.i32 little heap v413
+@15a3                               v415 = uextend.i64 v273
+@15a3                               v416 = global_value.i64 gv4
+@15a3                               v417 = iadd v416, v415
+@15a3                               v418 = iconst.i64 152
+@15a3                               v419 = iadd v417, v418  ; v418 = 152
+@15a3                               v420 = load.i32 little heap v419
+@15ab                               v421 = uextend.i64 v273
+@15ab                               v422 = global_value.i64 gv4
+@15ab                               v423 = iadd v422, v421
+@15ab                               v424 = iconst.i64 156
+@15ab                               v425 = iadd v423, v424  ; v424 = 156
+@15ab                               v426 = load.i32 little heap v425
+@15b3                               v427 = uextend.i64 v273
+@15b3                               v428 = global_value.i64 gv4
+@15b3                               v429 = iadd v428, v427
+@15b3                               v430 = iconst.i64 164
+@15b3                               v431 = iadd v429, v430  ; v430 = 164
+@15b3                               v432 = load.i32 little heap v431
+@15bb                               v433 = uextend.i64 v337
+@15bb                               v434 = global_value.i64 gv4
+@15bb                               v435 = iadd v434, v433
+@15bb                               v436 = iconst.i64 138
+@15bb                               v437 = iadd v435, v436  ; v436 = 138
+@15bb                               v438 = uload8.i32 little heap v437
+@15c3                               v439 = uextend.i64 v337
+@15c3                               v440 = global_value.i64 gv4
+@15c3                               v441 = iadd v440, v439
+@15c3                               v442 = iconst.i64 16
+@15c3                               v443 = iadd v441, v442  ; v442 = 16
+@15c3                               v444 = load.i8x16 little heap v443
+@15cb                               v445 = uextend.i64 v337
+@15cb                               v446 = global_value.i64 gv4
+@15cb                               v447 = iadd v446, v445
+@15cb                               v448 = load.i8x16 little heap v447
+@15d5                               v449 = uextend.i64 v273
+@15d5                               v450 = global_value.i64 gv4
+@15d5                               v451 = iadd v450, v449
+@15d5                               v452 = iconst.i64 172
+@15d5                               v453 = iadd v451, v452  ; v452 = 172
+@15d5                               v454 = load.i32 little heap v453
+@15db                               v455 = iconst.i32 24
+@15dd                               v456 = ushr v454, v455  ; v455 = 24
+@15de                               v457 = uextend.i64 v273
+@15de                               v458 = global_value.i64 gv4
+@15de                               v459 = iadd v458, v457
+@15de                               v460 = iconst.i64 135
+@15de                               v461 = iadd v459, v460  ; v460 = 135
+@15de                               istore8 little heap v456, v461
+@15e6                               v462 = iconst.i32 16
+@15e8                               v463 = ushr v454, v462  ; v462 = 16
+@15e9                               v464 = uextend.i64 v273
+@15e9                               v465 = global_value.i64 gv4
+@15e9                               v466 = iadd v465, v464
+@15e9                               v467 = iconst.i64 134
+@15e9                               v468 = iadd v466, v467  ; v467 = 134
+@15e9                               istore8 little heap v463, v468
+@15f1                               v469 = iconst.i32 8
+@15f3                               v470 = ushr v454, v469  ; v469 = 8
+@15f4                               v471 = uextend.i64 v273
+@15f4                               v472 = global_value.i64 gv4
+@15f4                               v473 = iadd v472, v471
+@15f4                               v474 = iconst.i64 133
+@15f4                               v475 = iadd v473, v474  ; v474 = 133
+@15f4                               istore8 little heap v470, v475
+@15fc                               v476 = uextend.i64 v273
+@15fc                               v477 = global_value.i64 gv4
+@15fc                               v478 = iadd v477, v476
+@15fc                               v479 = iconst.i64 132
+@15fc                               v480 = iadd v478, v479  ; v479 = 132
+@15fc                               istore8 little heap v454, v480
+@1604                               v481 = iconst.i32 24
+@1606                               v482 = ushr v402, v481  ; v481 = 24
+@1607                               v483 = uextend.i64 v273
+@1607                               v484 = global_value.i64 gv4
+@1607                               v485 = iadd v484, v483
+@1607                               v486 = iconst.i64 131
+@1607                               v487 = iadd v485, v486  ; v486 = 131
+@1607                               istore8 little heap v482, v487
+@160f                               v488 = iconst.i32 16
+@1611                               v489 = ushr v402, v488  ; v488 = 16
+@1612                               v490 = uextend.i64 v273
+@1612                               v491 = global_value.i64 gv4
+@1612                               v492 = iadd v491, v490
+@1612                               v493 = iconst.i64 130
+@1612                               v494 = iadd v492, v493  ; v493 = 130
+@1612                               istore8 little heap v489, v494
+@161a                               v495 = iconst.i32 8
+@161c                               v496 = ushr v402, v495  ; v495 = 8
+@161d                               v497 = uextend.i64 v273
+@161d                               v498 = global_value.i64 gv4
+@161d                               v499 = iadd v498, v497
+@161d                               v500 = iconst.i64 129
+@161d                               v501 = iadd v499, v500  ; v500 = 129
+@161d                               istore8 little heap v496, v501
+@1625                               v502 = uextend.i64 v273
+@1625                               v503 = global_value.i64 gv4
+@1625                               v504 = iadd v503, v502
+@1625                               v505 = iconst.i64 128
+@1625                               v506 = iadd v504, v505  ; v505 = 128
+@1625                               istore8 little heap v402, v506
+@162d                               v507 = iconst.i32 24
+@162f                               v508 = ushr v432, v507  ; v507 = 24
+@1630                               v509 = uextend.i64 v273
+@1630                               v510 = global_value.i64 gv4
+@1630                               v511 = iadd v510, v509
+@1630                               v512 = iconst.i64 127
+@1630                               v513 = iadd v511, v512  ; v512 = 127
+@1630                               istore8 little heap v508, v513
+@1637                               v514 = iconst.i32 16
+@1639                               v515 = ushr v432, v514  ; v514 = 16
+@163a                               v516 = uextend.i64 v273
+@163a                               v517 = global_value.i64 gv4
+@163a                               v518 = iadd v517, v516
+@163a                               v519 = iconst.i64 126
+@163a                               v520 = iadd v518, v519  ; v519 = 126
+@163a                               istore8 little heap v515, v520
+@1641                               v521 = iconst.i32 8
+@1643                               v522 = ushr v432, v521  ; v521 = 8
+@1644                               v523 = uextend.i64 v273
+@1644                               v524 = global_value.i64 gv4
+@1644                               v525 = iadd v524, v523
+@1644                               v526 = iconst.i64 125
+@1644                               v527 = iadd v525, v526  ; v526 = 125
+@1644                               istore8 little heap v522, v527
+@164b                               v528 = uextend.i64 v273
+@164b                               v529 = global_value.i64 gv4
+@164b                               v530 = iadd v529, v528
+@164b                               v531 = iconst.i64 124
+@164b                               v532 = iadd v530, v531  ; v531 = 124
+@164b                               istore8 little heap v432, v532
+@1652                               v533 = iconst.i32 24
+@1654                               v534 = ushr v396, v533  ; v533 = 24
+@1655                               v535 = uextend.i64 v273
+@1655                               v536 = global_value.i64 gv4
+@1655                               v537 = iadd v536, v535
+@1655                               v538 = iconst.i64 123
+@1655                               v539 = iadd v537, v538  ; v538 = 123
+@1655                               istore8 little heap v534, v539
+@165c                               v540 = iconst.i32 16
+@165e                               v541 = ushr v396, v540  ; v540 = 16
+@165f                               v542 = uextend.i64 v273
+@165f                               v543 = global_value.i64 gv4
+@165f                               v544 = iadd v543, v542
+@165f                               v545 = iconst.i64 122
+@165f                               v546 = iadd v544, v545  ; v545 = 122
+@165f                               istore8 little heap v541, v546
+@1666                               v547 = iconst.i32 8
+@1668                               v548 = ushr v396, v547  ; v547 = 8
+@1669                               v549 = uextend.i64 v273
+@1669                               v550 = global_value.i64 gv4
+@1669                               v551 = iadd v550, v549
+@1669                               v552 = iconst.i64 121
+@1669                               v553 = iadd v551, v552  ; v552 = 121
+@1669                               istore8 little heap v548, v553
+@1670                               v554 = uextend.i64 v273
+@1670                               v555 = global_value.i64 gv4
+@1670                               v556 = iadd v555, v554
+@1670                               v557 = iconst.i64 120
+@1670                               v558 = iadd v556, v557  ; v557 = 120
+@1670                               istore8 little heap v396, v558
+@1677                               v559 = iconst.i32 24
+@1679                               v560 = ushr v426, v559  ; v559 = 24
+@167a                               v561 = uextend.i64 v273
+@167a                               v562 = global_value.i64 gv4
+@167a                               v563 = iadd v562, v561
+@167a                               v564 = iconst.i64 119
+@167a                               v565 = iadd v563, v564  ; v564 = 119
+@167a                               istore8 little heap v560, v565
+@1681                               v566 = iconst.i32 16
+@1683                               v567 = ushr v426, v566  ; v566 = 16
+@1684                               v568 = uextend.i64 v273
+@1684                               v569 = global_value.i64 gv4
+@1684                               v570 = iadd v569, v568
+@1684                               v571 = iconst.i64 118
+@1684                               v572 = iadd v570, v571  ; v571 = 118
+@1684                               istore8 little heap v567, v572
+@168b                               v573 = iconst.i32 8
+@168d                               v574 = ushr v426, v573  ; v573 = 8
+@168e                               v575 = uextend.i64 v273
+@168e                               v576 = global_value.i64 gv4
+@168e                               v577 = iadd v576, v575
+@168e                               v578 = iconst.i64 117
+@168e                               v579 = iadd v577, v578  ; v578 = 117
+@168e                               istore8 little heap v574, v579
+@1695                               v580 = uextend.i64 v273
+@1695                               v581 = global_value.i64 gv4
+@1695                               v582 = iadd v581, v580
+@1695                               v583 = iconst.i64 116
+@1695                               v584 = iadd v582, v583  ; v583 = 116
+@1695                               istore8 little heap v426, v584
+@169c                               v585 = iconst.i32 24
+@169e                               v586 = ushr v420, v585  ; v585 = 24
+@169f                               v587 = uextend.i64 v273
+@169f                               v588 = global_value.i64 gv4
+@169f                               v589 = iadd v588, v587
+@169f                               v590 = iconst.i64 115
+@169f                               v591 = iadd v589, v590  ; v590 = 115
+@169f                               istore8 little heap v586, v591
+@16a6                               v592 = iconst.i32 16
+@16a8                               v593 = ushr v420, v592  ; v592 = 16
+@16a9                               v594 = uextend.i64 v273
+@16a9                               v595 = global_value.i64 gv4
+@16a9                               v596 = iadd v595, v594
+@16a9                               v597 = iconst.i64 114
+@16a9                               v598 = iadd v596, v597  ; v597 = 114
+@16a9                               istore8 little heap v593, v598
+@16b0                               v599 = iconst.i32 8
+@16b2                               v600 = ushr v420, v599  ; v599 = 8
+@16b3                               v601 = uextend.i64 v273
+@16b3                               v602 = global_value.i64 gv4
+@16b3                               v603 = iadd v602, v601
+@16b3                               v604 = iconst.i64 113
+@16b3                               v605 = iadd v603, v604  ; v604 = 113
+@16b3                               istore8 little heap v600, v605
+@16ba                               v606 = uextend.i64 v273
+@16ba                               v607 = global_value.i64 gv4
+@16ba                               v608 = iadd v607, v606
+@16ba                               v609 = iconst.i64 112
+@16ba                               v610 = iadd v608, v609  ; v609 = 112
+@16ba                               istore8 little heap v420, v610
+@16c1                               v611 = iconst.i32 24
+@16c3                               v612 = ushr v414, v611  ; v611 = 24
+@16c4                               v613 = uextend.i64 v273
+@16c4                               v614 = global_value.i64 gv4
+@16c4                               v615 = iadd v614, v613
+@16c4                               v616 = iconst.i64 111
+@16c4                               v617 = iadd v615, v616  ; v616 = 111
+@16c4                               istore8 little heap v612, v617
+@16cb                               v618 = iconst.i32 16
+@16cd                               v619 = ushr v414, v618  ; v618 = 16
+@16ce                               v620 = uextend.i64 v273
+@16ce                               v621 = global_value.i64 gv4
+@16ce                               v622 = iadd v621, v620
+@16ce                               v623 = iconst.i64 110
+@16ce                               v624 = iadd v622, v623  ; v623 = 110
+@16ce                               istore8 little heap v619, v624
+@16d5                               v625 = iconst.i32 8
+@16d7                               v626 = ushr v414, v625  ; v625 = 8
+@16d8                               v627 = uextend.i64 v273
+@16d8                               v628 = global_value.i64 gv4
+@16d8                               v629 = iadd v628, v627
+@16d8                               v630 = iconst.i64 109
+@16d8                               v631 = iadd v629, v630  ; v630 = 109
+@16d8                               istore8 little heap v626, v631
+@16df                               v632 = uextend.i64 v273
+@16df                               v633 = global_value.i64 gv4
+@16df                               v634 = iadd v633, v632
+@16df                               v635 = iconst.i64 108
+@16df                               v636 = iadd v634, v635  ; v635 = 108
+@16df                               istore8 little heap v414, v636
+@16e6                               v637 = iconst.i32 24
+@16e8                               v638 = ushr v408, v637  ; v637 = 24
+@16e9                               v639 = uextend.i64 v273
+@16e9                               v640 = global_value.i64 gv4
+@16e9                               v641 = iadd v640, v639
+@16e9                               v642 = iconst.i64 107
+@16e9                               v643 = iadd v641, v642  ; v642 = 107
+@16e9                               istore8 little heap v638, v643
+@16f0                               v644 = iconst.i32 16
+@16f2                               v645 = ushr v408, v644  ; v644 = 16
+@16f3                               v646 = uextend.i64 v273
+@16f3                               v647 = global_value.i64 gv4
+@16f3                               v648 = iadd v647, v646
+@16f3                               v649 = iconst.i64 106
+@16f3                               v650 = iadd v648, v649  ; v649 = 106
+@16f3                               istore8 little heap v645, v650
+@16fa                               v651 = iconst.i32 8
+@16fc                               v652 = ushr v408, v651  ; v651 = 8
+@16fd                               v653 = uextend.i64 v273
+@16fd                               v654 = global_value.i64 gv4
+@16fd                               v655 = iadd v654, v653
+@16fd                               v656 = iconst.i64 105
+@16fd                               v657 = iadd v655, v656  ; v656 = 105
+@16fd                               istore8 little heap v652, v657
+@1704                               v658 = uextend.i64 v273
+@1704                               v659 = global_value.i64 gv4
+@1704                               v660 = iadd v659, v658
+@1704                               v661 = iconst.i64 104
+@1704                               v662 = iadd v660, v661  ; v661 = 104
+@1704                               istore8 little heap v408, v662
+@170b                               v663 = uextend.i64 v273
+@170b                               v664 = global_value.i64 gv4
+@170b                               v665 = iadd v664, v663
+@170b                               v666 = iconst.i64 16
+@170b                               v667 = iadd v665, v666  ; v666 = 16
+@170b                               v668 = load.i8x16 little heap v667
+@170f                               v669 = uextend.i64 v273
+@170f                               v670 = global_value.i64 gv4
+@170f                               v671 = iadd v670, v669
+@170f                               v672 = iconst.i64 88
+@170f                               v673 = iadd v671, v672  ; v672 = 88
+@170f                               store little heap v668, v673
+@1717                               v674 = uextend.i64 v273
+@1717                               v675 = global_value.i64 gv4
+@1717                               v676 = iadd v675, v674
+@1717                               v677 = iconst.i64 48
+@1717                               v678 = iadd v676, v677  ; v677 = 48
+@1717                               store little heap v444, v678
+@171b                               v679 = iconst.i32 64
+@1722                               v680 = iconst.i32 64
+@1725                               v681 = uextend.i64 v273
+@1725                               v682 = global_value.i64 gv4
+@1725                               v683 = iadd v682, v681
+@1725                               v684 = iconst.i64 136
+@1725                               v685 = iadd v683, v684  ; v684 = 136
+@1725                               istore8 little heap v680, v685  ; v680 = 64
+@172b                               v686 = iconst.i64 0
+@172d                               v687 = uextend.i64 v273
+@172d                               v688 = global_value.i64 gv4
+@172d                               v689 = iadd v688, v687
+@172d                               v690 = iconst.i64 64
+@172d                               v691 = iadd v689, v690  ; v690 = 64
+@172d                               store little heap v686, v691  ; v686 = 0
+@1734                               v692 = uextend.i64 v273
+@1734                               v693 = global_value.i64 gv4
+@1734                               v694 = iadd v693, v692
+@1734                               v695 = iconst.i64 32
+@1734                               v696 = iadd v694, v695  ; v695 = 32
+@1734                               store little heap v448, v696
+@173c                               v697 = uextend.i64 v273
+@173c                               v698 = global_value.i64 gv4
+@173c                               v699 = iadd v698, v697
+@173c                               v700 = load.i8x16 little heap v699
+@1740                               v701 = uextend.i64 v273
+@1740                               v702 = global_value.i64 gv4
+@1740                               v703 = iadd v702, v701
+@1740                               v704 = iconst.i64 72
+@1740                               v705 = iadd v703, v704  ; v704 = 72
+@1740                               store little heap v700, v705
+@1748                               v706 = iconst.i32 4
+@174a                               v707 = bor v438, v706  ; v706 = 4
+@174d                               v708 = uextend.i64 v273
+@174d                               v709 = global_value.i64 gv4
+@174d                               v710 = iadd v709, v708
+@174d                               v711 = iconst.i64 137
+@174d                               v712 = iadd v710, v711  ; v711 = 137
+@174d                               istore8 little heap v707, v712
+@1753                               v713 = icmp_imm eq v339, 0
+@1753                               v714 = uextend.i32 v713
+@1754                               brif v714, block11(v679, v707), block13  ; v679 = 64
+
+                                block13:
+@1756                               jump block14(v339, v707)
+
+                                block14(v717: i32, v771: i32):
+@175e                               v718 = iconst.i32 0xffff_ffff
+@1760                               v719 = iadd v717, v718  ; v718 = 0xffff_ffff
+@1763                               v720 = iconst.i32 5
+@1765                               v721 = ishl v719, v720  ; v720 = 5
+@1766                               v722 = iadd.i32 v716, v721
+@1769                               v723 = uextend.i64 v722
+@1769                               v724 = global_value.i64 gv4
+@1769                               v725 = iadd v724, v723
+@1769                               v726 = iconst.i64 161
+@1769                               v727 = iadd v725, v726  ; v726 = 161
+@1769                               v728 = load.i8x16 little heap v727
+@176e                               v729 = uextend.i64 v715
+@176e                               v730 = global_value.i64 gv4
+@176e                               v731 = iadd v730, v729
+@176e                               v732 = iconst.i64 16
+@176e                               v733 = iadd v731, v732  ; v732 = 16
+@176e                               store little heap v728, v733
+@1776                               v734 = uextend.i64 v722
+@1776                               v735 = global_value.i64 gv4
+@1776                               v736 = iadd v735, v734
+@1776                               v737 = iconst.i64 145
+@1776                               v738 = iadd v736, v737  ; v737 = 145
+@1776                               v739 = load.i8x16 little heap v738
+@177b                               v740 = uextend.i64 v715
+@177b                               v741 = global_value.i64 gv4
+@177b                               v742 = iadd v741, v740
+@177b                               store little heap v739, v742
+@1783                               v743 = uextend.i64 v715
+@1783                               v744 = global_value.i64 gv4
+@1783                               v745 = iadd v744, v743
+@1783                               v746 = iconst.i64 48
+@1783                               v747 = iadd v745, v746  ; v746 = 48
+@1783                               v748 = load.i8x16 little heap v747
+@1787                               v749 = uextend.i64 v715
+@1787                               v750 = global_value.i64 gv4
+@1787                               v751 = iadd v750, v749
+@1787                               v752 = iconst.i64 160
+@1787                               v753 = iadd v751, v752  ; v752 = 160
+@1787                               store little heap v748, v753
+@1790                               v754 = uextend.i64 v715
+@1790                               v755 = global_value.i64 gv4
+@1790                               v756 = iadd v755, v754
+@1790                               v757 = iconst.i64 32
+@1790                               v758 = iadd v756, v757  ; v757 = 32
+@1790                               v759 = load.i8x16 little heap v758
+@1794                               v760 = uextend.i64 v715
+@1794                               v761 = global_value.i64 gv4
+@1794                               v762 = iadd v761, v760
+@1794                               v763 = iconst.i64 144
+@1794                               v764 = iadd v762, v763  ; v763 = 144
+@1794                               store little heap v759, v764
+@1799                               v765 = iconst.i32 64
+@17a0                               v766 = iconst.i32 144
+@17a3                               v767 = iadd.i32 v715, v766  ; v766 = 144
+@17a6                               v769 = iconst.i32 64
+@17a9                               v770 = iconst.i64 0
+@17ad                               v772 = iconst.i32 255
+@17b0                               v773 = band v771, v772  ; v772 = 255
+@17b1                               call fn2(v0, v0, v767, v768, v769, v770, v773)  ; v769 = 64, v770 = 0
+@17b5                               v774 = uextend.i64 v715
+@17b5                               v775 = global_value.i64 gv4
+@17b5                               v776 = iadd v775, v774
+@17b5                               v777 = iconst.i64 160
+@17b5                               v778 = iadd v776, v777  ; v777 = 160
+@17b5                               v779 = load.i32 little heap v778
+@17bd                               v780 = uextend.i64 v715
+@17bd                               v781 = global_value.i64 gv4
+@17bd                               v782 = iadd v781, v780
+@17bd                               v783 = iconst.i64 168
+@17bd                               v784 = iadd v782, v783  ; v783 = 168
+@17bd                               v785 = load.i32 little heap v784
+@17c5                               v786 = uextend.i64 v715
+@17c5                               v787 = global_value.i64 gv4
+@17c5                               v788 = iadd v787, v786
+@17c5                               v789 = iconst.i64 144
+@17c5                               v790 = iadd v788, v789  ; v789 = 144
+@17c5                               v791 = load.i32 little heap v790
+@17cd                               v792 = uextend.i64 v715
+@17cd                               v793 = global_value.i64 gv4
+@17cd                               v794 = iadd v793, v792
+@17cd                               v795 = iconst.i64 148
+@17cd                               v796 = iadd v794, v795  ; v795 = 148
+@17cd                               v797 = load.i32 little heap v796
+@17d5                               v798 = uextend.i64 v715
+@17d5                               v799 = global_value.i64 gv4
+@17d5                               v800 = iadd v799, v798
+@17d5                               v801 = iconst.i64 152
+@17d5                               v802 = iadd v800, v801  ; v801 = 152
+@17d5                               v803 = load.i32 little heap v802
+@17dd                               v804 = uextend.i64 v715
+@17dd                               v805 = global_value.i64 gv4
+@17dd                               v806 = iadd v805, v804
+@17dd                               v807 = iconst.i64 156
+@17dd                               v808 = iadd v806, v807  ; v807 = 156
+@17dd                               v809 = load.i32 little heap v808
+@17e5                               v810 = uextend.i64 v715
+@17e5                               v811 = global_value.i64 gv4
+@17e5                               v812 = iadd v811, v810
+@17e5                               v813 = iconst.i64 164
+@17e5                               v814 = iadd v812, v813  ; v813 = 164
+@17e5                               v815 = load.i32 little heap v814
+@17ed                               v816 = uextend.i64 v715
+@17ed                               v817 = global_value.i64 gv4
+@17ed                               v818 = iadd v817, v816
+@17ed                               v819 = iconst.i64 172
+@17ed                               v820 = iadd v818, v819  ; v819 = 172
+@17ed                               v821 = load.i32 little heap v820
+@17f5                               v822 = uextend.i64 v716
+@17f5                               v823 = global_value.i64 gv4
+@17f5                               v824 = iadd v823, v822
+@17f5                               v825 = iconst.i64 138
+@17f5                               v826 = iadd v824, v825  ; v825 = 138
+@17f5                               v827 = uload8.i32 little heap v826
+@17ff                               v828 = uextend.i64 v716
+@17ff                               v829 = global_value.i64 gv4
+@17ff                               v830 = iadd v829, v828
+@17ff                               v831 = iconst.i64 16
+@17ff                               v832 = iadd v830, v831  ; v831 = 16
+@17ff                               v833 = load.i8x16 little heap v832
+@1803                               v834 = uextend.i64 v715
+@1803                               v835 = global_value.i64 gv4
+@1803                               v836 = iadd v835, v834
+@1803                               v837 = iconst.i64 48
+@1803                               v838 = iadd v836, v837  ; v837 = 48
+@1803                               store little heap v833, v838
+@180b                               v839 = uextend.i64 v716
+@180b                               v840 = global_value.i64 gv4
+@180b                               v841 = iadd v840, v839
+@180b                               v842 = load.i8x16 little heap v841
+@180f                               v843 = uextend.i64 v715
+@180f                               v844 = global_value.i64 gv4
+@180f                               v845 = iadd v844, v843
+@180f                               v846 = iconst.i64 32
+@180f                               v847 = iadd v845, v846  ; v846 = 32
+@180f                               store little heap v842, v847
+@1817                               v848 = uextend.i64 v715
+@1817                               v849 = global_value.i64 gv4
+@1817                               v850 = iadd v849, v848
+@1817                               v851 = load.i8x16 little heap v850
+@181b                               v852 = uextend.i64 v768
+@181b                               v853 = global_value.i64 gv4
+@181b                               v854 = iadd v853, v852
+@181b                               store little heap v851, v854
+@1823                               v855 = uextend.i64 v715
+@1823                               v856 = global_value.i64 gv4
+@1823                               v857 = iadd v856, v855
+@1823                               v858 = iconst.i64 16
+@1823                               v859 = iadd v857, v858  ; v858 = 16
+@1823                               v860 = load.i8x16 little heap v859
+@1827                               v861 = uextend.i64 v768
+@1827                               v862 = global_value.i64 gv4
+@1827                               v863 = iadd v862, v861
+@1827                               v864 = iconst.i64 16
+@1827                               v865 = iadd v863, v864  ; v864 = 16
+@1827                               store little heap v860, v865
+@182d                               v866 = iconst.i64 0
+@182f                               v867 = uextend.i64 v715
+@182f                               v868 = global_value.i64 gv4
+@182f                               v869 = iadd v868, v867
+@182f                               v870 = iconst.i64 64
+@182f                               v871 = iadd v869, v870  ; v870 = 64
+@182f                               store little heap v866, v871  ; v866 = 0
+@1834                               v872 = iconst.i32 64
+@1837                               v873 = uextend.i64 v715
+@1837                               v874 = global_value.i64 gv4
+@1837                               v875 = iadd v874, v873
+@1837                               v876 = iconst.i64 136
+@1837                               v877 = iadd v875, v876  ; v876 = 136
+@1837                               istore8 little heap v872, v877  ; v872 = 64
+@183f                               v878 = iconst.i32 4
+@1841                               v879 = bor v827, v878  ; v878 = 4
+@1844                               v880 = uextend.i64 v715
+@1844                               v881 = global_value.i64 gv4
+@1844                               v882 = iadd v881, v880
+@1844                               v883 = iconst.i64 137
+@1844                               v884 = iadd v882, v883  ; v883 = 137
+@1844                               istore8 little heap v879, v884
+@184c                               v885 = iconst.i32 24
+@184e                               v886 = ushr v821, v885  ; v885 = 24
+@184f                               v887 = uextend.i64 v715
+@184f                               v888 = global_value.i64 gv4
+@184f                               v889 = iadd v888, v887
+@184f                               v890 = iconst.i64 135
+@184f                               v891 = iadd v889, v890  ; v890 = 135
+@184f                               istore8 little heap v886, v891
+@1857                               v892 = iconst.i32 16
+@1859                               v893 = ushr v821, v892  ; v892 = 16
+@185a                               v894 = uextend.i64 v715
+@185a                               v895 = global_value.i64 gv4
+@185a                               v896 = iadd v895, v894
+@185a                               v897 = iconst.i64 134
+@185a                               v898 = iadd v896, v897  ; v897 = 134
+@185a                               istore8 little heap v893, v898
+@1862                               v899 = iconst.i32 8
+@1864                               v900 = ushr v821, v899  ; v899 = 8
+@1865                               v901 = uextend.i64 v715
+@1865                               v902 = global_value.i64 gv4
+@1865                               v903 = iadd v902, v901
+@1865                               v904 = iconst.i64 133
+@1865                               v905 = iadd v903, v904  ; v904 = 133
+@1865                               istore8 little heap v900, v905
+@186d                               v906 = uextend.i64 v715
+@186d                               v907 = global_value.i64 gv4
+@186d                               v908 = iadd v907, v906
+@186d                               v909 = iconst.i64 132
+@186d                               v910 = iadd v908, v909  ; v909 = 132
+@186d                               istore8 little heap v821, v910
+@1875                               v911 = iconst.i32 24
+@1877                               v912 = ushr v785, v911  ; v911 = 24
+@1878                               v913 = uextend.i64 v715
+@1878                               v914 = global_value.i64 gv4
+@1878                               v915 = iadd v914, v913
+@1878                               v916 = iconst.i64 131
+@1878                               v917 = iadd v915, v916  ; v916 = 131
+@1878                               istore8 little heap v912, v917
+@1880                               v918 = iconst.i32 16
+@1882                               v919 = ushr v785, v918  ; v918 = 16
+@1883                               v920 = uextend.i64 v715
+@1883                               v921 = global_value.i64 gv4
+@1883                               v922 = iadd v921, v920
+@1883                               v923 = iconst.i64 130
+@1883                               v924 = iadd v922, v923  ; v923 = 130
+@1883                               istore8 little heap v919, v924
+@188b                               v925 = iconst.i32 8
+@188d                               v926 = ushr v785, v925  ; v925 = 8
+@188e                               v927 = uextend.i64 v715
+@188e                               v928 = global_value.i64 gv4
+@188e                               v929 = iadd v928, v927
+@188e                               v930 = iconst.i64 129
+@188e                               v931 = iadd v929, v930  ; v930 = 129
+@188e                               istore8 little heap v926, v931
+@1896                               v932 = uextend.i64 v715
+@1896                               v933 = global_value.i64 gv4
+@1896                               v934 = iadd v933, v932
+@1896                               v935 = iconst.i64 128
+@1896                               v936 = iadd v934, v935  ; v935 = 128
+@1896                               istore8 little heap v785, v936
+@189e                               v937 = iconst.i32 24
+@18a0                               v938 = ushr v815, v937  ; v937 = 24
+@18a1                               v939 = uextend.i64 v715
+@18a1                               v940 = global_value.i64 gv4
+@18a1                               v941 = iadd v940, v939
+@18a1                               v942 = iconst.i64 127
+@18a1                               v943 = iadd v941, v942  ; v942 = 127
+@18a1                               istore8 little heap v938, v943
+@18a8                               v944 = iconst.i32 16
+@18aa                               v945 = ushr v815, v944  ; v944 = 16
+@18ab                               v946 = uextend.i64 v715
+@18ab                               v947 = global_value.i64 gv4
+@18ab                               v948 = iadd v947, v946
+@18ab                               v949 = iconst.i64 126
+@18ab                               v950 = iadd v948, v949  ; v949 = 126
+@18ab                               istore8 little heap v945, v950
+@18b2                               v951 = iconst.i32 8
+@18b4                               v952 = ushr v815, v951  ; v951 = 8
+@18b5                               v953 = uextend.i64 v715
+@18b5                               v954 = global_value.i64 gv4
+@18b5                               v955 = iadd v954, v953
+@18b5                               v956 = iconst.i64 125
+@18b5                               v957 = iadd v955, v956  ; v956 = 125
+@18b5                               istore8 little heap v952, v957
+@18bc                               v958 = uextend.i64 v715
+@18bc                               v959 = global_value.i64 gv4
+@18bc                               v960 = iadd v959, v958
+@18bc                               v961 = iconst.i64 124
+@18bc                               v962 = iadd v960, v961  ; v961 = 124
+@18bc                               istore8 little heap v815, v962
+@18c3                               v963 = iconst.i32 24
+@18c5                               v964 = ushr v779, v963  ; v963 = 24
+@18c6                               v965 = uextend.i64 v715
+@18c6                               v966 = global_value.i64 gv4
+@18c6                               v967 = iadd v966, v965
+@18c6                               v968 = iconst.i64 123
+@18c6                               v969 = iadd v967, v968  ; v968 = 123
+@18c6                               istore8 little heap v964, v969
+@18cd                               v970 = iconst.i32 16
+@18cf                               v971 = ushr v779, v970  ; v970 = 16
+@18d0                               v972 = uextend.i64 v715
+@18d0                               v973 = global_value.i64 gv4
+@18d0                               v974 = iadd v973, v972
+@18d0                               v975 = iconst.i64 122
+@18d0                               v976 = iadd v974, v975  ; v975 = 122
+@18d0                               istore8 little heap v971, v976
+@18d7                               v977 = iconst.i32 8
+@18d9                               v978 = ushr v779, v977  ; v977 = 8
+@18da                               v979 = uextend.i64 v715
+@18da                               v980 = global_value.i64 gv4
+@18da                               v981 = iadd v980, v979
+@18da                               v982 = iconst.i64 121
+@18da                               v983 = iadd v981, v982  ; v982 = 121
+@18da                               istore8 little heap v978, v983
+@18e1                               v984 = uextend.i64 v715
+@18e1                               v985 = global_value.i64 gv4
+@18e1                               v986 = iadd v985, v984
+@18e1                               v987 = iconst.i64 120
+@18e1                               v988 = iadd v986, v987  ; v987 = 120
+@18e1                               istore8 little heap v779, v988
+@18e8                               v989 = iconst.i32 24
+@18ea                               v990 = ushr v809, v989  ; v989 = 24
+@18eb                               v991 = uextend.i64 v715
+@18eb                               v992 = global_value.i64 gv4
+@18eb                               v993 = iadd v992, v991
+@18eb                               v994 = iconst.i64 119
+@18eb                               v995 = iadd v993, v994  ; v994 = 119
+@18eb                               istore8 little heap v990, v995
+@18f2                               v996 = iconst.i32 16
+@18f4                               v997 = ushr v809, v996  ; v996 = 16
+@18f5                               v998 = uextend.i64 v715
+@18f5                               v999 = global_value.i64 gv4
+@18f5                               v1000 = iadd v999, v998
+@18f5                               v1001 = iconst.i64 118
+@18f5                               v1002 = iadd v1000, v1001  ; v1001 = 118
+@18f5                               istore8 little heap v997, v1002
+@18fc                               v1003 = iconst.i32 8
+@18fe                               v1004 = ushr v809, v1003  ; v1003 = 8
+@18ff                               v1005 = uextend.i64 v715
+@18ff                               v1006 = global_value.i64 gv4
+@18ff                               v1007 = iadd v1006, v1005
+@18ff                               v1008 = iconst.i64 117
+@18ff                               v1009 = iadd v1007, v1008  ; v1008 = 117
+@18ff                               istore8 little heap v1004, v1009
+@1906                               v1010 = uextend.i64 v715
+@1906                               v1011 = global_value.i64 gv4
+@1906                               v1012 = iadd v1011, v1010
+@1906                               v1013 = iconst.i64 116
+@1906                               v1014 = iadd v1012, v1013  ; v1013 = 116
+@1906                               istore8 little heap v809, v1014
+@190d                               v1015 = iconst.i32 24
+@190f                               v1016 = ushr v803, v1015  ; v1015 = 24
+@1910                               v1017 = uextend.i64 v715
+@1910                               v1018 = global_value.i64 gv4
+@1910                               v1019 = iadd v1018, v1017
+@1910                               v1020 = iconst.i64 115
+@1910                               v1021 = iadd v1019, v1020  ; v1020 = 115
+@1910                               istore8 little heap v1016, v1021
+@1917                               v1022 = iconst.i32 16
+@1919                               v1023 = ushr v803, v1022  ; v1022 = 16
+@191a                               v1024 = uextend.i64 v715
+@191a                               v1025 = global_value.i64 gv4
+@191a                               v1026 = iadd v1025, v1024
+@191a                               v1027 = iconst.i64 114
+@191a                               v1028 = iadd v1026, v1027  ; v1027 = 114
+@191a                               istore8 little heap v1023, v1028
+@1921                               v1029 = iconst.i32 8
+@1923                               v1030 = ushr v803, v1029  ; v1029 = 8
+@1924                               v1031 = uextend.i64 v715
+@1924                               v1032 = global_value.i64 gv4
+@1924                               v1033 = iadd v1032, v1031
+@1924                               v1034 = iconst.i64 113
+@1924                               v1035 = iadd v1033, v1034  ; v1034 = 113
+@1924                               istore8 little heap v1030, v1035
+@192b                               v1036 = uextend.i64 v715
+@192b                               v1037 = global_value.i64 gv4
+@192b                               v1038 = iadd v1037, v1036
+@192b                               v1039 = iconst.i64 112
+@192b                               v1040 = iadd v1038, v1039  ; v1039 = 112
+@192b                               istore8 little heap v803, v1040
+@1932                               v1041 = iconst.i32 24
+@1934                               v1042 = ushr v797, v1041  ; v1041 = 24
+@1935                               v1043 = uextend.i64 v715
+@1935                               v1044 = global_value.i64 gv4
+@1935                               v1045 = iadd v1044, v1043
+@1935                               v1046 = iconst.i64 111
+@1935                               v1047 = iadd v1045, v1046  ; v1046 = 111
+@1935                               istore8 little heap v1042, v1047
+@193c                               v1048 = iconst.i32 16
+@193e                               v1049 = ushr v797, v1048  ; v1048 = 16
+@193f                               v1050 = uextend.i64 v715
+@193f                               v1051 = global_value.i64 gv4
+@193f                               v1052 = iadd v1051, v1050
+@193f                               v1053 = iconst.i64 110
+@193f                               v1054 = iadd v1052, v1053  ; v1053 = 110
+@193f                               istore8 little heap v1049, v1054
+@1946                               v1055 = iconst.i32 8
+@1948                               v1056 = ushr v797, v1055  ; v1055 = 8
+@1949                               v1057 = uextend.i64 v715
+@1949                               v1058 = global_value.i64 gv4
+@1949                               v1059 = iadd v1058, v1057
+@1949                               v1060 = iconst.i64 109
+@1949                               v1061 = iadd v1059, v1060  ; v1060 = 109
+@1949                               istore8 little heap v1056, v1061
+@1950                               v1062 = uextend.i64 v715
+@1950                               v1063 = global_value.i64 gv4
+@1950                               v1064 = iadd v1063, v1062
+@1950                               v1065 = iconst.i64 108
+@1950                               v1066 = iadd v1064, v1065  ; v1065 = 108
+@1950                               istore8 little heap v797, v1066
+@1957                               v1067 = iconst.i32 24
+@1959                               v1068 = ushr v791, v1067  ; v1067 = 24
+@195a                               v1069 = uextend.i64 v715
+@195a                               v1070 = global_value.i64 gv4
+@195a                               v1071 = iadd v1070, v1069
+@195a                               v1072 = iconst.i64 107
+@195a                               v1073 = iadd v1071, v1072  ; v1072 = 107
+@195a                               istore8 little heap v1068, v1073
+@1961                               v1074 = iconst.i32 16
+@1963                               v1075 = ushr v791, v1074  ; v1074 = 16
+@1964                               v1076 = uextend.i64 v715
+@1964                               v1077 = global_value.i64 gv4
+@1964                               v1078 = iadd v1077, v1076
+@1964                               v1079 = iconst.i64 106
+@1964                               v1080 = iadd v1078, v1079  ; v1079 = 106
+@1964                               istore8 little heap v1075, v1080
+@196b                               v1081 = iconst.i32 8
+@196d                               v1082 = ushr v791, v1081  ; v1081 = 8
+@196e                               v1083 = uextend.i64 v715
+@196e                               v1084 = global_value.i64 gv4
+@196e                               v1085 = iadd v1084, v1083
+@196e                               v1086 = iconst.i64 105
+@196e                               v1087 = iadd v1085, v1086  ; v1086 = 105
+@196e                               istore8 little heap v1082, v1087
+@1975                               v1088 = uextend.i64 v715
+@1975                               v1089 = global_value.i64 gv4
+@1975                               v1090 = iadd v1089, v1088
+@1975                               v1091 = iconst.i64 104
+@1975                               v1092 = iadd v1090, v1091  ; v1091 = 104
+@1975                               istore8 little heap v791, v1092
+@197a                               brif v719, block14(v719, v879), block16
+
+                                block16:
+@197c                               jump block15
+
+                                block15:
+@197d                               jump block11(v765, v879)  ; v765 = 64
+
+                                block11(v1140: i32, v1141: i32):
+@197e                               v1093 = iconst.i64 0
+@1984                               v1095 = iconst.i32 72
+@1987                               v1096 = iadd.i32 v11, v1095  ; v1095 = 72
+                                    v1100 -> v1096
+@198a                               jump block17(v1140, v1093, v1141, v3, v7)  ; v1093 = 0, v7 = 32
+
+                                block17(v1101: i32, v1104: i64, v1105: i32, v1112: i32, v1116: i32):
+@198e                               v1098 = iconst.i32 32
+@1990                               v1099 = iadd.i32 v1097, v1098  ; v1098 = 32
+@1995                               v1102 = iconst.i32 255
+@1998                               v1103 = band v1101, v1102  ; v1102 = 255
+@199d                               v1106 = iconst.i32 8
+@199f                               v1107 = bor v1105, v1106  ; v1106 = 8
+@19a0                               v1108 = iconst.i32 255
+@19a3                               v1109 = band v1107, v1108  ; v1108 = 255
+@19a6                               v1110 = iconst.i32 144
+@19a9                               v1111 = iadd.i32 v1097, v1110  ; v1110 = 144
+@19aa                               call fn0(v0, v0, v1099, v1100, v1103, v1104, v1109, v1111)
+@19b0                               v1113 = iconst.i32 144
+@19b3                               v1114 = iadd.i32 v1097, v1113  ; v1113 = 144
+@19b4                               v1115 = iconst.i32 64
+@19bb                               v1117 = iconst.i32 64
+@19be                               v1118 = icmp ugt v1116, v1117  ; v1117 = 64
+@19be                               v1119 = uextend.i32 v1118
+@19bf                               v1120 = select v1119, v1115, v1116  ; v1115 = 64
+@19c2                               v1121 = call fn1(v0, v0, v1112, v1114, v1120)
+@19ca                               v1122 = isub v1116, v1120
+@19cd                               v1123 = icmp_imm eq v1122, 0
+@19cd                               v1124 = uextend.i32 v1123
+@19ce                               brif v1124, block2, block19
+
+                                block19:
+@19d4                               v1125 = iadd.i32 v1120, v1121
+@19d9                               v1126 = iconst.i64 1
+@19db                               v1127 = iadd.i64 v1104, v1126  ; v1126 = 1
+@19e0                               v1128 = uextend.i64 v1097
+@19e0                               v1129 = global_value.i64 gv4
+@19e0                               v1130 = iadd v1129, v1128
+@19e0                               v1131 = iconst.i64 137
+@19e0                               v1132 = iadd v1130, v1131  ; v1131 = 137
+@19e0                               v1133 = uload8.i32 little heap v1132
+@19e8                               v1134 = uextend.i64 v1097
+@19e8                               v1135 = global_value.i64 gv4
+@19e8                               v1136 = iadd v1135, v1134
+@19e8                               v1137 = iconst.i64 136
+@19e8                               v1138 = iadd v1136, v1137  ; v1137 = 136
+@19e8                               v1139 = uload8.i32 little heap v1138
+@19ee                               jump block17(v1139, v1127, v1133, v1125, v1122)
+
+                                block2:
+@19f5                               v1149 = iconst.i32 208
+@19f8                               v1150 = iadd.i32 v11, v1149  ; v1149 = 208
+@19f9                               v1151 = global_value.i64 gv3
+@19f9                               store notrap aligned table v1150, v1151+320
+@19fb                               jump block1
+
+                                block1:
+@19fb                               return
+}
+
+; function u0:9(i64 vmctx, i64, i32, i32) fast {
+;     gv0 = vmctx
+;     gv1 = load.i64 notrap aligned readonly gv0+8
+;     gv2 = load.i64 notrap aligned gv1
+;     gv3 = vmctx
+;     gv4 = load.i64 notrap aligned readonly checked gv3+304
+;     sig0 = (i64 vmctx, i64, i32, i32, i32, i64, i32, i32) fast
+;     sig1 = (i64 vmctx, i64, i32, i32, i32) -> i32 fast
+;     sig2 = (i64 vmctx, i64, i32, i32, i32, i64, i32) fast
+;     fn0 = colocated u0:12 sig0
+;     fn1 = colocated u0:43 sig1
+;     fn2 = colocated u0:11 sig2
+;     const0 = 0x00000000000000000000000000000000
+;     stack_limit = gv2
+;
+;                                 block0(v0: i64, v1: i64, v2: i32, v3: i32):
+; @1337                               v13 = uextend.i64 v2
+; @1337                               v14 = load.i64 notrap aligned readonly checked v0+304
+;                                     v1153 = iconst.i32 0
+; @1329                               v9 = load.i32 notrap aligned table v0+320
+; @132b                               v10 = iconst.i32 208
+; @1337                               v15 = iadd v14, v13
+; @1337                               v16 = iconst.i64 144
+; @132e                               v11 = isub v9, v10  ; v10 = 208
+; @1331                               store notrap aligned table v11, v0+320
+; @1337                               v17 = iadd v15, v16  ; v16 = 144
+; @1337                               v18 = uload8.i32 little heap v17
+; @133d                               v19 = icmp eq v18, v1153  ; v1153 = 0
+; @133d                               v20 = uextend.i32 v19
+; @133e                               brif v20, block3, block4
+;
+;                                 block3:
+;                                     v1386 = uextend.i64 v11
+;                                     v1387 = iadd.i64 v14, v1386
+;                                     v1388 = iconst.i32 32
+;                                     v1389 = iconst.i32 64
+;                                     v1390 = iadd.i32 v2, v1389  ; v1389 = 64
+;                                     v1391 = iconst.i64 138
+;                                     v1392 = iadd.i64 v15, v1391  ; v1391 = 138
+; @1342                               v26 = uload8.i32 little heap v1392
+;                                     v1393 = iconst.i64 137
+;                                     v1394 = iadd v1387, v1393  ; v1393 = 137
+;                                     v1395 = iconst.i64 136
+;                                     v1396 = iadd.i64 v15, v1395  ; v1395 = 136
+;                                     v1397 = uextend.i64 v1390
+;                                     v1398 = iadd v1387, v1395  ; v1395 = 136
+;                                     v1399 = iconst.i64 48
+;                                     v1400 = iadd v1387, v1399  ; v1399 = 48
+;                                     v1401 = iconst.i64 32
+;                                     v1402 = iadd v1387, v1401  ; v1401 = 32
+;                                     v1403 = iconst.i64 88
+;                                     v1404 = iconst.i64 104
+;                                     v1405 = iconst.i64 120
+;                                     v1406 = iconst.i64 72
+;                                     v1407 = iconst.i64 64
+;                                     v1408 = iconst.i32 2
+;                                     v1409 = iconst.i64 0
+;                                     v1410 = iadd.i64 v15, v1393  ; v1393 = 137
+; @134a                               v32 = uload8.i32 little heap v1410
+; @13bf                               v121 = icmp eq v32, v1153  ; v1153 = 0
+; @13bf                               v122 = uextend.i32 v121
+; @13c0                               v123 = bor v26, v122
+; @1352                               v38 = uload8.i32 little heap v1396
+;                                     v1411 = iadd.i64 v14, v1397
+; @13c3                               v125 = bor v123, v1408  ; v1408 = 2
+; @135d                               v44 = load.i64 little heap v1411
+;                                     v1412 = iadd.i64 v15, v1399  ; v1399 = 48
+; @1366                               v50 = load.i8x16 little heap v1412
+;                                     v1413 = iadd.i64 v15, v1401  ; v1401 = 32
+; @137e                               v71 = iadd.i64 v15, v1403  ; v1403 = 88
+;                                     v1414 = iadd v1387, v1403  ; v1403 = 88
+; @138a                               v82 = iadd.i64 v15, v1404  ; v1404 = 104
+;                                     v1415 = iadd v1387, v1404  ; v1404 = 104
+; @1396                               v93 = iadd.i64 v15, v1405  ; v1405 = 120
+;                                     v1416 = iadd v1387, v1405  ; v1405 = 120
+; @13a2                               v104 = iadd.i64 v15, v1406  ; v1406 = 72
+;                                     v1417 = iadd v1387, v1406  ; v1406 = 72
+;                                     v1418 = iadd v1387, v1407  ; v1407 = 64
+; @136a                               store little heap v50, v1400
+; @1372                               v61 = load.i8x16 little heap v1413
+; @1376                               store little heap v61, v1402
+; @137e                               v72 = load.i8x16 little heap v71
+; @1382                               store little heap v72, v1414
+; @138a                               v83 = load.i8x16 little heap v82
+; @138e                               store little heap v83, v1415
+; @1396                               v94 = load.i8x16 little heap v93
+; @139a                               store little heap v94, v1416
+; @13a2                               v105 = load.i8x16 little heap v104
+; @13a6                               store little heap v105, v1417
+; @13ae                               store little heap v44, v1418
+; @13b5                               istore8 little heap v38, v1398
+; @13c6                               istore8 little heap v125, v1394
+; @13d6                               jump block5(v38, v1409, v125, v3, v1388)  ; v1409 = 0, v1388 = 32
+;
+;                                 block5(v138: i32, v141: i64, v142: i32, v149: i32, v153: i32):
+;                                     v1419 = iconst.i32 8
+;                                     v1420 = iconst.i32 0xffff_ffc0
+;                                     v1421 = iadd.i32 v9, v1420  ; v1420 = 0xffff_ffc0
+;                                     v1422 = iconst.i32 255
+; @13eb                               v144 = bor v142, v1419  ; v1419 = 8
+;                                     v1423 = iconst.i32 0xffff_ff78
+;                                     v1424 = iadd.i32 v9, v1423  ; v1423 = 0xffff_ff78
+;                                     v1425 = iconst.i32 0xffff_ff50
+; @13e4                               v140 = band v138, v1422  ; v1422 = 255
+; @13ef                               v146 = band v144, v1422  ; v1422 = 255
+;                                     v1426 = iadd.i32 v9, v1425  ; v1425 = 0xffff_ff50
+;                                     v1340 = umin v153, v1389  ; v1389 = 64
+; @1416                               v159 = isub v153, v1340
+; @1419                               v160 = icmp eq v159, v1153  ; v1153 = 0
+; @1419                               v161 = uextend.i32 v160
+; @13f6                               call fn0(v0, v0, v1426, v1424, v140, v141, v146, v1421)
+; @140e                               v158 = call fn1(v0, v0, v149, v1421, v1340)
+; @141a                               brif v161, block2, block7
+;
+;                                 block7:
+;                                     v1427 = iconst.i64 1
+; @1420                               v162 = iadd.i32 v1340, v158
+; @1427                               v164 = iadd.i64 v141, v1427  ; v1427 = 1
+; @142c                               v170 = uload8.i32 little heap v1394
+; @1434                               v176 = uload8.i32 little heap v1398
+; @143a                               jump block5(v176, v164, v170, v162, v159)
+;
+;                                 block4:
+; @1454                               v192 = iconst.i32 6
+; @134a                               v30 = iconst.i64 137
+; @1352                               v36 = iconst.i64 136
+; @134a                               v31 = iadd.i64 v15, v30  ; v30 = 137
+; @1352                               v37 = iadd.i64 v15, v36  ; v36 = 136
+; @1445                               v184 = uload8.i32 little heap v37
+; @144e                               v191 = uload8.i32 little heap v31
+; @1456                               v193 = ishl v191, v192  ; v192 = 6
+;                                     v1345 = ineg v184
+; @1457                               v194 = icmp ne v1345, v193
+; @1457                               v195 = uextend.i32 v194
+; @1458                               brif v195, block9, block10
+;
+;                                 block9:
+; @1490                               v232 = icmp.i32 eq v191, v1153  ; v1153 = 0
+;                                     v1355 = iconst.i32 64
+;                                     v1356 = uextend.i64 v11
+;                                     v1329 = iadd.i32 v2, v1355  ; v1355 = 64
+; @1490                               v233 = uextend.i32 v232
+;                                     v1357 = iconst.i64 138
+; @135d                               v41 = uextend.i64 v1329
+;                                     v1358 = iconst.i64 48
+;                                     v1359 = iadd.i64 v14, v1356
+; @1366                               v49 = iadd.i64 v15, v1358  ; v1358 = 48
+;                                     v1360 = iadd v1359, v1358  ; v1358 = 48
+; @13c1                               v124 = iconst.i32 2
+;                                     v1361 = iconst.i64 32
+;                                     v1362 = iadd v1359, v1361  ; v1361 = 32
+; @13d0                               v132 = iconst.i32 72
+; @1489                               v231 = iadd.i32 v2, v132  ; v132 = 72
+;                                     v1363 = iadd.i64 v15, v1357  ; v1357 = 138
+; @135d                               v43 = iadd.i64 v14, v41
+; @1372                               v60 = iadd.i64 v15, v1361  ; v1361 = 32
+; @145f                               v201 = load.i64 little heap v43
+; @1466                               v207 = uload8.i32 little heap v1363
+; @1491                               v234 = bor v207, v233
+; @1470                               v213 = load.i8x16 little heap v49
+; @1494                               v236 = bor v234, v124  ; v124 = 2
+; @1474                               store little heap v213, v1360
+; @147c                               v224 = load.i8x16 little heap v60
+; @1480                               store little heap v224, v1362
+; @1495                               jump block8(v236, v231, v184, v201, v18)
+;
+;                                 block10:
+; @1531                               v340 = iconst.i32 5
+; @136a                               v51 = uextend.i64 v11
+; @1342                               v24 = iconst.i64 138
+; @1366                               v48 = iconst.i64 48
+; @136a                               v53 = iadd.i64 v14, v51
+; @1372                               v59 = iconst.i64 32
+; @14f4                               v300 = iconst.i64 16
+; @1748                               v706 = iconst.i32 4
+; @14bc                               v263 = iconst.i32 0xffff_fffe
+; @14be                               v264 = iadd.i32 v18, v263  ; v263 = 0xffff_fffe
+; @14c3                               v266 = ishl v264, v340  ; v340 = 5
+; @14c4                               v267 = iadd.i32 v2, v266
+; @14c5                               v268 = iconst.i32 145
+; @1321                               v5 = iconst.i64 0
+; @1342                               v25 = iadd.i64 v15, v24  ; v24 = 138
+; @149a                               v242 = uload8.i32 little heap v25
+; @136a                               v55 = iadd v53, v48  ; v48 = 48
+; @1376                               v66 = iadd v53, v59  ; v59 = 32
+; @15c3                               v443 = iadd.i64 v15, v300  ; v300 = 16
+; @14a4                               v248 = load.i8x16 little heap v443
+; @14c8                               v269 = iadd v267, v268  ; v268 = 145
+; @14d4                               v272 = bor v242, v706  ; v706 = 4
+;                                     v1328 = iconst.i32 64
+; @14a8                               store little heap v248, v55
+; @14b0                               v257 = load.i8x16 little heap v15
+; @14b4                               store little heap v257, v66
+; @14d5                               jump block8(v272, v269, v1328, v5, v264)  ; v1328 = 64, v5 = 0
+;
+;                                 block8(v177: i32, v274: i32, v322: i32, v328: i64, v334: i32):
+;                                     v1364 = uextend.i64 v11
+; @1523                               v335 = icmp eq v334, v1153  ; v1153 = 0
+;                                     v1365 = iadd.i64 v14, v1364
+; @1523                               v336 = uextend.i32 v335
+; @14dc                               v275 = uextend.i64 v274
+;                                     v1366 = iconst.i64 48
+;                                     v1367 = iconst.i64 32
+; @137e                               v70 = iconst.i64 88
+; @138a                               v81 = iconst.i64 104
+; @1396                               v92 = iconst.i64 120
+; @13a2                               v103 = iconst.i64 72
+; @13ae                               v114 = iconst.i64 64
+; @14dc                               v277 = iadd.i64 v14, v275
+; @13b5                               v120 = iadd v1365, v36  ; v36 = 136
+;                                     v1368 = iconst.i64 16
+; @1382                               v77 = iadd v1365, v70  ; v70 = 88
+; @138e                               v88 = iadd v1365, v81  ; v81 = 104
+; @139a                               v99 = iadd v1365, v92  ; v92 = 120
+; @13a6                               v110 = iadd v1365, v103  ; v103 = 72
+; @13ae                               v115 = iadd v1365, v114  ; v114 = 64
+; @13c6                               v130 = iadd v1365, v30  ; v30 = 137
+; @14dc                               v279 = iadd v277, v1366  ; v1366 = 48
+; @14dc                               v280 = load.i8x16 little heap v279
+; @14e8                               v290 = iadd v277, v1367  ; v1367 = 32
+; @14f4                               v301 = iadd v277, v1368  ; v1368 = 16
+; @14e0                               store little heap v280, v99
+; @14e8                               v291 = load.i8x16 little heap v290
+; @14ec                               store little heap v291, v88
+; @14f4                               v302 = load.i8x16 little heap v301
+; @14f8                               store little heap v302, v77
+; @1500                               v311 = load.i8x16 little heap v277
+; @1504                               store little heap v311, v110
+; @150c                               istore8 little heap v177, v130
+; @1514                               istore8 little heap v322, v120
+; @151c                               store little heap v328, v115
+; @1524                               brif v336, block11(v322, v177), block12
+;
+;                                 block12:
+;                                     v1369 = iadd.i64 v1365, v1366  ; v1366 = 48
+;                                     v1370 = iadd.i64 v1365, v1367  ; v1367 = 32
+; @152c                               v338 = iconst.i32 0xffff_ffff
+; @152e                               v339 = iadd.i32 v334, v338  ; v338 = 0xffff_ffff
+;                                     v1371 = iconst.i32 5
+; @1533                               v341 = ishl v339, v1371  ; v1371 = 5
+; @1753                               v713 = icmp eq v339, v1153  ; v1153 = 0
+; @1534                               v342 = iadd.i32 v2, v341
+;                                     v1372 = iconst.i32 64
+; @1537                               v343 = uextend.i64 v342
+;                                     v1373 = iconst.i64 138
+;                                     v1374 = iadd.i64 v15, v1373  ; v1373 = 138
+; @135a                               v39 = iconst.i32 0xffff_ffc0
+; @13e1                               v139 = iconst.i32 255
+; @13e9                               v143 = iconst.i32 8
+; @1537                               v345 = iadd.i64 v14, v343
+; @1537                               v346 = iconst.i64 161
+; @1544                               v357 = iconst.i64 145
+; @1555                               v372 = iconst.i64 160
+; @158b                               v400 = iconst.i64 168
+; @159b                               v412 = iconst.i64 148
+; @15a3                               v418 = iconst.i64 152
+; @15ab                               v424 = iconst.i64 156
+; @15b3                               v430 = iconst.i64 164
+; @15d5                               v452 = iconst.i64 172
+; @15db                               v455 = iconst.i32 24
+; @15de                               v460 = iconst.i64 135
+; @15e6                               v462 = iconst.i32 16
+; @15e9                               v467 = iconst.i64 134
+; @15f4                               v474 = iconst.i64 133
+; @15fc                               v479 = iconst.i64 132
+; @1607                               v486 = iconst.i64 131
+; @1612                               v493 = iconst.i64 130
+; @161d                               v500 = iconst.i64 129
+; @1625                               v505 = iconst.i64 128
+; @1630                               v512 = iconst.i64 127
+; @163a                               v519 = iconst.i64 126
+; @1644                               v526 = iconst.i64 125
+; @164b                               v531 = iconst.i64 124
+; @1655                               v538 = iconst.i64 123
+; @165f                               v545 = iconst.i64 122
+; @1669                               v552 = iconst.i64 121
+; @167a                               v564 = iconst.i64 119
+; @1684                               v571 = iconst.i64 118
+; @168e                               v578 = iconst.i64 117
+; @1695                               v583 = iconst.i64 116
+; @169f                               v590 = iconst.i64 115
+; @16a9                               v597 = iconst.i64 114
+; @16b3                               v604 = iconst.i64 113
+; @16ba                               v609 = iconst.i64 112
+; @16c4                               v616 = iconst.i64 111
+; @16ce                               v623 = iconst.i64 110
+; @16d8                               v630 = iconst.i64 109
+; @16df                               v635 = iconst.i64 108
+; @16e9                               v642 = iconst.i64 107
+; @16f3                               v649 = iconst.i64 106
+; @16fd                               v656 = iconst.i64 105
+;                                     v1375 = iconst.i32 4
+;                                     v1331 = iconst.i32 0xffff_ff78
+;                                     v1376 = iconst.i64 0
+; @1537                               v347 = iadd v345, v346  ; v346 = 161
+; @1544                               v358 = iadd v345, v357  ; v357 = 145
+; @1537                               v348 = load.i8x16 little heap v347
+; @153c                               v353 = iadd.i64 v1365, v1368  ; v1368 = 16
+; @1555                               v373 = iadd.i64 v1365, v372  ; v372 = 160
+; @1562                               v384 = iadd.i64 v1365, v16  ; v16 = 144
+; @157e                               v390 = band.i32 v177, v139  ; v139 = 255
+; @158b                               v401 = iadd.i64 v1365, v400  ; v400 = 168
+; @159b                               v413 = iadd.i64 v1365, v412  ; v412 = 148
+; @15a3                               v419 = iadd.i64 v1365, v418  ; v418 = 152
+; @15ab                               v425 = iadd.i64 v1365, v424  ; v424 = 156
+; @15b3                               v431 = iadd.i64 v1365, v430  ; v430 = 164
+;                                     v1377 = iadd.i64 v15, v1368  ; v1368 = 16
+; @15d5                               v453 = iadd.i64 v1365, v452  ; v452 = 172
+; @15de                               v461 = iadd.i64 v1365, v460  ; v460 = 135
+; @15e9                               v468 = iadd.i64 v1365, v467  ; v467 = 134
+; @15f4                               v475 = iadd.i64 v1365, v474  ; v474 = 133
+; @15fc                               v480 = iadd.i64 v1365, v479  ; v479 = 132
+; @1607                               v487 = iadd.i64 v1365, v486  ; v486 = 131
+; @1612                               v494 = iadd.i64 v1365, v493  ; v493 = 130
+; @161d                               v501 = iadd.i64 v1365, v500  ; v500 = 129
+; @1625                               v506 = iadd.i64 v1365, v505  ; v505 = 128
+; @1630                               v513 = iadd.i64 v1365, v512  ; v512 = 127
+; @163a                               v520 = iadd.i64 v1365, v519  ; v519 = 126
+; @1644                               v527 = iadd.i64 v1365, v526  ; v526 = 125
+; @164b                               v532 = iadd.i64 v1365, v531  ; v531 = 124
+; @1655                               v539 = iadd.i64 v1365, v538  ; v538 = 123
+; @165f                               v546 = iadd.i64 v1365, v545  ; v545 = 122
+; @1669                               v553 = iadd.i64 v1365, v552  ; v552 = 121
+; @167a                               v565 = iadd.i64 v1365, v564  ; v564 = 119
+; @1684                               v572 = iadd.i64 v1365, v571  ; v571 = 118
+; @168e                               v579 = iadd.i64 v1365, v578  ; v578 = 117
+; @1695                               v584 = iadd.i64 v1365, v583  ; v583 = 116
+; @169f                               v591 = iadd.i64 v1365, v590  ; v590 = 115
+; @16a9                               v598 = iadd.i64 v1365, v597  ; v597 = 114
+; @16b3                               v605 = iadd.i64 v1365, v604  ; v604 = 113
+; @16ba                               v610 = iadd.i64 v1365, v609  ; v609 = 112
+; @16c4                               v617 = iadd.i64 v1365, v616  ; v616 = 111
+; @16ce                               v624 = iadd.i64 v1365, v623  ; v623 = 110
+; @16d8                               v631 = iadd.i64 v1365, v630  ; v630 = 109
+; @16df                               v636 = iadd.i64 v1365, v635  ; v635 = 108
+; @16e9                               v643 = iadd.i64 v1365, v642  ; v642 = 107
+; @16f3                               v650 = iadd.i64 v1365, v649  ; v649 = 106
+; @16fd                               v657 = iadd.i64 v1365, v656  ; v656 = 105
+; @1753                               v714 = uextend.i32 v713
+;                                     v1332 = iadd.i32 v9, v1331  ; v1331 = 0xffff_ff78
+;                                     v1337 = iadd.i32 v9, v39  ; v39 = 0xffff_ffc0
+; @153c                               store little heap v348, v353
+; @1544                               v359 = load.i8x16 little heap v358
+; @1549                               store little heap v359, v1365
+; @1551                               v368 = load.i8x16 little heap v1369
+; @1555                               store little heap v368, v373
+; @155e                               v379 = load.i8x16 little heap v1370
+; @1562                               store little heap v379, v384
+; @157f                               call fn2(v0, v0, v1337, v1332, v322, v328, v390)
+; @1583                               v396 = load.i32 little heap v373
+; @158b                               v402 = load.i32 little heap v401
+; @1593                               v408 = load.i32 little heap v384
+; @159b                               v414 = load.i32 little heap v413
+; @15a3                               v420 = load.i32 little heap v419
+; @15ab                               v426 = load.i32 little heap v425
+; @15b3                               v432 = load.i32 little heap v431
+; @15bb                               v438 = uload8.i32 little heap v1374
+; @15c3                               v444 = load.i8x16 little heap v1377
+; @15cb                               v448 = load.i8x16 little heap v15
+; @15d5                               v454 = load.i32 little heap v453
+; @15dd                               v456 = ushr v454, v455  ; v455 = 24
+; @15e8                               v463 = ushr v454, v462  ; v462 = 16
+; @15f3                               v470 = ushr v454, v143  ; v143 = 8
+; @1606                               v482 = ushr v402, v455  ; v455 = 24
+; @1611                               v489 = ushr v402, v462  ; v462 = 16
+; @161c                               v496 = ushr v402, v143  ; v143 = 8
+; @162f                               v508 = ushr v432, v455  ; v455 = 24
+; @1639                               v515 = ushr v432, v462  ; v462 = 16
+; @1643                               v522 = ushr v432, v143  ; v143 = 8
+; @1654                               v534 = ushr v396, v455  ; v455 = 24
+; @165e                               v541 = ushr v396, v462  ; v462 = 16
+; @1668                               v548 = ushr v396, v143  ; v143 = 8
+; @1679                               v560 = ushr v426, v455  ; v455 = 24
+; @1683                               v567 = ushr v426, v462  ; v462 = 16
+; @168d                               v574 = ushr v426, v143  ; v143 = 8
+; @169e                               v586 = ushr v420, v455  ; v455 = 24
+; @16a8                               v593 = ushr v420, v462  ; v462 = 16
+; @16b2                               v600 = ushr v420, v143  ; v143 = 8
+; @16c3                               v612 = ushr v414, v455  ; v455 = 24
+; @16e8                               v638 = ushr v408, v455  ; v455 = 24
+; @16cd                               v619 = ushr v414, v462  ; v462 = 16
+; @16f2                               v645 = ushr v408, v462  ; v462 = 16
+; @16d7                               v626 = ushr v414, v143  ; v143 = 8
+; @16fc                               v652 = ushr v408, v143  ; v143 = 8
+; @174a                               v707 = bor v438, v1375  ; v1375 = 4
+; @15de                               istore8 little heap v456, v461
+; @15e9                               istore8 little heap v463, v468
+; @15f4                               istore8 little heap v470, v475
+; @15fc                               istore8 little heap v454, v480
+; @1607                               istore8 little heap v482, v487
+; @1612                               istore8 little heap v489, v494
+; @161d                               istore8 little heap v496, v501
+; @1625                               istore8 little heap v402, v506
+; @1630                               istore8 little heap v508, v513
+; @163a                               istore8 little heap v515, v520
+; @1644                               istore8 little heap v522, v527
+; @164b                               istore8 little heap v432, v532
+; @1655                               istore8 little heap v534, v539
+; @165f                               istore8 little heap v541, v546
+; @1669                               istore8 little heap v548, v553
+; @1670                               istore8 little heap v396, v99
+; @167a                               istore8 little heap v560, v565
+; @1684                               istore8 little heap v567, v572
+; @168e                               istore8 little heap v574, v579
+; @1695                               istore8 little heap v426, v584
+; @169f                               istore8 little heap v586, v591
+; @16a9                               istore8 little heap v593, v598
+; @16b3                               istore8 little heap v600, v605
+; @16ba                               istore8 little heap v420, v610
+; @16c4                               istore8 little heap v612, v617
+; @16ce                               istore8 little heap v619, v624
+; @16d8                               istore8 little heap v626, v631
+; @16df                               istore8 little heap v414, v636
+; @16e9                               istore8 little heap v638, v643
+; @16f3                               istore8 little heap v645, v650
+; @16fd                               istore8 little heap v652, v657
+; @1704                               istore8 little heap v408, v88
+; @170b                               v668 = load.i8x16 little heap v353
+; @170f                               store little heap v668, v77
+; @1717                               store little heap v444, v1369
+; @1725                               istore8 little heap v1372, v120  ; v1372 = 64
+; @172d                               store little heap v1376, v115  ; v1376 = 0
+; @1734                               store little heap v448, v1370
+; @173c                               v700 = load.i8x16 little heap v1365
+; @1740                               store little heap v700, v110
+; @174d                               istore8 little heap v707, v130
+; @1754                               brif v714, block11(v1372, v707), block13  ; v1372 = 64
+;
+;                                 block13:
+; @1756                               jump block14(v339, v707)
+;
+;                                 block14(v717: i32, v771: i32):
+; @1760                               v719 = iadd v717, v338  ; v338 = 0xffff_ffff
+; @1765                               v721 = ishl v719, v1371  ; v1371 = 5
+; @1766                               v722 = iadd.i32 v2, v721
+; @1769                               v723 = uextend.i64 v722
+; @1769                               v725 = iadd.i64 v14, v723
+; @181b                               v852 = uextend.i64 v1332
+; @181b                               v854 = iadd.i64 v14, v852
+; @1769                               v727 = iadd v725, v346  ; v346 = 161
+; @1776                               v738 = iadd v725, v357  ; v357 = 145
+; @1769                               v728 = load.i8x16 little heap v727
+; @17b0                               v773 = band v771, v139  ; v139 = 255
+; @1827                               v865 = iadd v854, v1368  ; v1368 = 16
+; @176e                               store little heap v728, v353
+; @1776                               v739 = load.i8x16 little heap v738
+; @177b                               store little heap v739, v1365
+; @1783                               v748 = load.i8x16 little heap v1369
+; @1787                               store little heap v748, v373
+; @1790                               v759 = load.i8x16 little heap v1370
+; @1794                               store little heap v759, v384
+; @17b1                               call fn2(v0, v0, v1337, v1332, v1372, v1376, v773)  ; v1372 = 64, v1376 = 0
+; @17b5                               v779 = load.i32 little heap v373
+; @17bd                               v785 = load.i32 little heap v401
+; @17c5                               v791 = load.i32 little heap v384
+; @17cd                               v797 = load.i32 little heap v413
+; @17d5                               v803 = load.i32 little heap v419
+; @17dd                               v809 = load.i32 little heap v425
+; @17e5                               v815 = load.i32 little heap v431
+; @17ed                               v821 = load.i32 little heap v453
+; @17f5                               v827 = uload8.i32 little heap v1374
+; @17ff                               v833 = load.i8x16 little heap v1377
+; @1841                               v879 = bor v827, v1375  ; v1375 = 4
+; @184e                               v886 = ushr v821, v455  ; v455 = 24
+; @1859                               v893 = ushr v821, v462  ; v462 = 16
+; @1864                               v900 = ushr v821, v143  ; v143 = 8
+; @1877                               v912 = ushr v785, v455  ; v455 = 24
+; @1882                               v919 = ushr v785, v462  ; v462 = 16
+; @188d                               v926 = ushr v785, v143  ; v143 = 8
+; @18a0                               v938 = ushr v815, v455  ; v455 = 24
+; @18aa                               v945 = ushr v815, v462  ; v462 = 16
+; @18b4                               v952 = ushr v815, v143  ; v143 = 8
+; @18c5                               v964 = ushr v779, v455  ; v455 = 24
+; @18cf                               v971 = ushr v779, v462  ; v462 = 16
+; @18d9                               v978 = ushr v779, v143  ; v143 = 8
+; @18ea                               v990 = ushr v809, v455  ; v455 = 24
+; @18f4                               v997 = ushr v809, v462  ; v462 = 16
+; @18fe                               v1004 = ushr v809, v143  ; v143 = 8
+; @190f                               v1016 = ushr v803, v455  ; v455 = 24
+; @1919                               v1023 = ushr v803, v462  ; v462 = 16
+; @1923                               v1030 = ushr v803, v143  ; v143 = 8
+; @1934                               v1042 = ushr v797, v455  ; v455 = 24
+; @1959                               v1068 = ushr v791, v455  ; v455 = 24
+; @193e                               v1049 = ushr v797, v462  ; v462 = 16
+; @1963                               v1075 = ushr v791, v462  ; v462 = 16
+; @1948                               v1056 = ushr v797, v143  ; v143 = 8
+; @196d                               v1082 = ushr v791, v143  ; v143 = 8
+; @1803                               store little heap v833, v1369
+; @180b                               v842 = load.i8x16 little heap v15
+; @180f                               store little heap v842, v1370
+; @1817                               v851 = load.i8x16 little heap v1365
+; @181b                               store little heap v851, v854
+; @1823                               v860 = load.i8x16 little heap v353
+; @1827                               store little heap v860, v865
+; @182f                               store.i64 little heap v1376, v115  ; v1376 = 0
+; @1837                               istore8.i32 little heap v1372, v120  ; v1372 = 64
+; @1844                               istore8 little heap v879, v130
+; @184f                               istore8 little heap v886, v461
+; @185a                               istore8 little heap v893, v468
+; @1865                               istore8 little heap v900, v475
+; @186d                               istore8 little heap v821, v480
+; @1878                               istore8 little heap v912, v487
+; @1883                               istore8 little heap v919, v494
+; @188e                               istore8 little heap v926, v501
+; @1896                               istore8 little heap v785, v506
+; @18a1                               istore8 little heap v938, v513
+; @18ab                               istore8 little heap v945, v520
+; @18b5                               istore8 little heap v952, v527
+; @18bc                               istore8 little heap v815, v532
+; @18c6                               istore8 little heap v964, v539
+; @18d0                               istore8 little heap v971, v546
+; @18da                               istore8 little heap v978, v553
+; @18e1                               istore8 little heap v779, v99
+; @18eb                               istore8 little heap v990, v565
+; @18f5                               istore8 little heap v997, v572
+; @18ff                               istore8 little heap v1004, v579
+; @1906                               istore8 little heap v809, v584
+; @1910                               istore8 little heap v1016, v591
+; @191a                               istore8 little heap v1023, v598
+; @1924                               istore8 little heap v1030, v605
+; @192b                               istore8 little heap v803, v610
+; @1935                               istore8 little heap v1042, v617
+; @193f                               istore8 little heap v1049, v624
+; @1949                               istore8 little heap v1056, v631
+; @1950                               istore8 little heap v797, v636
+; @195a                               istore8 little heap v1068, v643
+; @1964                               istore8 little heap v1075, v650
+; @196e                               istore8 little heap v1082, v657
+; @1975                               istore8 little heap v791, v88
+; @197a                               brif v719, block14(v719, v879), block16
+;
+;                                 block16:
+; @197c                               jump block15
+;
+;                                 block15:
+; @197d                               jump block11(v1372, v879)  ; v1372 = 64
+;
+;                                 block11(v1140: i32, v1141: i32):
+;                                     v1378 = iconst.i64 0
+; @1325                               v7 = iconst.i32 32
+; @198a                               jump block17(v1140, v1378, v1141, v3, v7)  ; v1378 = 0, v7 = 32
+;
+;                                 block17(v1101: i32, v1104: i64, v1105: i32, v1112: i32, v1116: i32):
+;                                     v1379 = iconst.i32 64
+;                                     v1350 = umin v1116, v1379  ; v1379 = 64
+; @19ca                               v1122 = isub v1116, v1350
+;                                     v1380 = iconst.i32 8
+;                                     v1381 = iconst.i32 0xffff_ffc0
+;                                     v1382 = iadd.i32 v9, v1381  ; v1381 = 0xffff_ffc0
+;                                     v1383 = iconst.i32 255
+; @199f                               v1107 = bor v1105, v1380  ; v1380 = 8
+; @19cd                               v1123 = icmp eq v1122, v1153  ; v1153 = 0
+;                                     v1384 = iconst.i32 0xffff_ff78
+;                                     v1334 = iconst.i32 0xffff_ff50
+; @1998                               v1103 = band v1101, v1383  ; v1383 = 255
+; @19a3                               v1109 = band v1107, v1383  ; v1383 = 255
+; @19cd                               v1124 = uextend.i32 v1123
+;                                     v1335 = iadd.i32 v9, v1334  ; v1334 = 0xffff_ff50
+;                                     v1385 = iadd.i32 v9, v1384  ; v1384 = 0xffff_ff78
+; @19aa                               call fn0(v0, v0, v1335, v1385, v1103, v1104, v1109, v1382)
+; @19c2                               v1121 = call fn1(v0, v0, v1112, v1382, v1350)
+; @19ce                               brif v1124, block2, block19
+;
+;                                 block19:
+; @1425                               v163 = iconst.i64 1
+; @19d4                               v1125 = iadd.i32 v1350, v1121
+; @19db                               v1127 = iadd.i64 v1104, v163  ; v163 = 1
+; @19e0                               v1133 = uload8.i32 little heap v130
+; @19e8                               v1139 = uload8.i32 little heap v120
+; @19ee                               jump block17(v1139, v1127, v1133, v1125, v1122)
+;
+;                                 block2:
+; @19f9                               store.i32 notrap aligned table v9, v0+320
+; @19fb                               jump block1
+;
+;                                 block1:
+; @19fb                               return
+; }
+

@@ -23,23 +23,23 @@
 ;;       lg      %r1, 0(%r1)
 ;;       la      %r1, 0xa0(%r1)
 ;;       clgrtle %r15, %r1
-;;       stmg    %r14, %r15, 0x70(%r15)
+;;       stmg    %r8, %r15, 0x40(%r15)
 ;;       lgr     %r1, %r15
 ;;       aghi    %r15, -0xa0
 ;;       stg     %r1, 0(%r15)
-;;       llgfr   %r3, %r4
-;;       llilf   %r7, 0xffff0001
-;;       algfr   %r7, %r4
-;;       jgnle   0x38
-;;       lg      %r6, 0x68(%r2)
-;;       lghi    %r4, 0
-;;       ag      %r3, 0x60(%r2)
-;;       llilh   %r2, 0xffff
-;;       agrk    %r2, %r3, %r2
-;;       clgr    %r7, %r6
-;;       locgrh  %r2, %r4
+;;       llilh   %r9, 0xffff
+;;       lghi    %r3, 0
+;;       llgfr   %r14, %r4
+;;       llilf   %r8, 0xffff0001
+;;       algfr   %r8, %r4
+;;       jgnle   0x40
+;;       lg      %r4, 0x68(%r2)
+;;       ag      %r14, 0x60(%r2)
+;;       agrk    %r2, %r14, %r9
+;;       clgr    %r8, %r4
+;;       locgrh  %r2, %r3
 ;;       stc     %r5, 0(%r2)
-;;       lmg     %r14, %r15, 0x110(%r15)
+;;       lmg     %r8, %r15, 0xe0(%r15)
 ;;       br      %r14
 ;;
 ;; wasm[0]::function[1]:
@@ -47,21 +47,21 @@
 ;;       lg      %r1, 0(%r1)
 ;;       la      %r1, 0xa0(%r1)
 ;;       clgrtle %r15, %r1
-;;       stmg    %r14, %r15, 0x70(%r15)
+;;       stmg    %r9, %r15, 0x48(%r15)
 ;;       lgr     %r1, %r15
 ;;       aghi    %r15, -0xa0
 ;;       stg     %r1, 0(%r15)
-;;       llgfr   %r3, %r4
-;;       llilf   %r7, 0xffff0001
-;;       algfr   %r7, %r4
-;;       jgnle   0xa0
-;;       lg      %r5, 0x68(%r2)
-;;       lghi    %r4, 0
-;;       ag      %r3, 0x60(%r2)
-;;       llilh   %r6, 0xffff
-;;       agrk    %r2, %r3, %r6
-;;       clgr    %r7, %r5
-;;       locgrh  %r2, %r4
+;;       llilh   %r9, 0xffff
+;;       lghi    %r3, 0
+;;       llgfr   %r14, %r4
+;;       llilf   %r5, 0xffff0001
+;;       algfr   %r5, %r4
+;;       jgnle   0xa8
+;;       lg      %r4, 0x68(%r2)
+;;       ag      %r14, 0x60(%r2)
+;;       agrk    %r2, %r14, %r9
+;;       clgr    %r5, %r4
+;;       locgrh  %r2, %r3
 ;;       llc     %r2, 0(%r2)
-;;       lmg     %r14, %r15, 0x110(%r15)
+;;       lmg     %r9, %r15, 0xe8(%r15)
 ;;       br      %r14

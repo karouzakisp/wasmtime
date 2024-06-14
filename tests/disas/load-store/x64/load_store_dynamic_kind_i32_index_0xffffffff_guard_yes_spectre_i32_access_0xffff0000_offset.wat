@@ -21,16 +21,16 @@
 ;; wasm[0]::function[0]:
 ;;       pushq   %rbp
 ;;       movq    %rsp, %rbp
-;;       movq    0x68(%rdi), %r8
 ;;       movl    %edx, %edx
-;;       xorq    %rax, %rax
-;;       movq    %rdx, %r9
-;;       addq    0x60(%rdi), %r9
+;;       movq    0x68(%rdi), %rax
+;;       movq    %rdx, %r8
+;;       addq    0x60(%rdi), %r8
 ;;       movl    $0xffff0000, %edi
-;;       leaq    (%r9, %rdi), %rsi
-;;       cmpq    %r8, %rdx
-;;       cmovaq  %rax, %rsi
-;;       movl    %ecx, (%rsi)
+;;       leaq    (%r8, %rdi), %r11
+;;       xorq    %rdi, %rdi
+;;       cmpq    %rax, %rdx
+;;       cmovaq  %rdi, %r11
+;;       movl    %ecx, (%r11)
 ;;       movq    %rbp, %rsp
 ;;       popq    %rbp
 ;;       retq
@@ -38,16 +38,16 @@
 ;; wasm[0]::function[1]:
 ;;       pushq   %rbp
 ;;       movq    %rsp, %rbp
-;;       movq    0x68(%rdi), %r9
 ;;       movl    %edx, %ecx
-;;       xorq    %rax, %rax
-;;       movq    %rcx, %r8
-;;       addq    0x60(%rdi), %r8
+;;       movq    0x68(%rdi), %rax
+;;       movq    %rcx, %rdx
+;;       addq    0x60(%rdi), %rdx
 ;;       movl    $0xffff0000, %edi
-;;       leaq    (%r8, %rdi), %rsi
-;;       cmpq    %r9, %rcx
-;;       cmovaq  %rax, %rsi
-;;       movl    (%rsi), %eax
+;;       leaq    (%rdx, %rdi), %r11
+;;       xorq    %rdi, %rdi
+;;       cmpq    %rax, %rcx
+;;       cmovaq  %rdi, %r11
+;;       movl    (%r11), %eax
 ;;       movq    %rbp, %rsp
 ;;       popq    %rbp
 ;;       retq

@@ -21,29 +21,29 @@
 ;; wasm[0]::function[0]:
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
-;;       mov     x9, #0
-;;       ldr     x10, [x2, #0x60]
-;;       add     x10, x10, x4
-;;       add     x10, x10, #1, lsl #12
+;;       ldr     x9, [x0, #0x60]
+;;       add     x9, x9, x2
+;;       add     x9, x9, #1, lsl #12
+;;       mov     x10, #0
 ;;       mov     w8, #-0x1004
-;;       cmp     x4, x8
-;;       csel    x11, x9, x10, hi
+;;       cmp     x2, x8
+;;       csel    x11, x10, x9, hi
 ;;       csdb
-;;       str     w5, [x11]
+;;       str     w3, [x11]
 ;;       ldp     x29, x30, [sp], #0x10
 ;;       ret
 ;;
 ;; wasm[0]::function[1]:
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
-;;       mov     x9, #0
-;;       ldr     x10, [x2, #0x60]
-;;       add     x10, x10, x4
-;;       add     x10, x10, #1, lsl #12
+;;       ldr     x9, [x0, #0x60]
+;;       add     x9, x9, x2
+;;       add     x9, x9, #1, lsl #12
+;;       mov     x10, #0
 ;;       mov     w8, #-0x1004
-;;       cmp     x4, x8
-;;       csel    x11, x9, x10, hi
+;;       cmp     x2, x8
+;;       csel    x11, x10, x9, hi
 ;;       csdb
-;;       ldr     w2, [x11]
+;;       ldr     w0, [x11]
 ;;       ldp     x29, x30, [sp], #0x10
 ;;       ret
