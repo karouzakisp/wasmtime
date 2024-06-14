@@ -22,11 +22,11 @@
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
 ;;       ldr     x8, [x0, #0x68]
-;;       ldr     x10, [x0, #0x60]
-;;       mov     x9, #0
-;;       add     x10, x10, x2
+;;       ldr     x9, [x0, #0x60]
+;;       add     x9, x9, x2
+;;       mov     x10, #0
 ;;       cmp     x2, x8
-;;       csel    x9, x9, x10, hi
+;;       csel    x9, x10, x9, hi
 ;;       csdb
 ;;       str     w3, [x9]
 ;;       ldp     x29, x30, [sp], #0x10
@@ -36,11 +36,11 @@
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
 ;;       ldr     x8, [x0, #0x68]
-;;       ldr     x10, [x0, #0x60]
-;;       mov     x9, #0
-;;       add     x10, x10, x2
+;;       ldr     x9, [x0, #0x60]
+;;       add     x9, x9, x2
+;;       mov     x10, #0
 ;;       cmp     x2, x8
-;;       csel    x9, x9, x10, hi
+;;       csel    x9, x10, x9, hi
 ;;       csdb
 ;;       ldr     w0, [x9]
 ;;       ldp     x29, x30, [sp], #0x10

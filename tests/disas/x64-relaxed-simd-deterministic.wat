@@ -106,13 +106,13 @@
 ;;       pushq   %rbp
 ;;       movq    %rsp, %rbp
 ;;       vpmovsxbw %xmm0, %xmm4
-;;       vpmovsxbw %xmm1, %xmm5
-;;       vpmullw %xmm5, %xmm4, %xmm4
 ;;       vpalignr $8, %xmm0, %xmm0, %xmm3
 ;;       vpmovsxbw %xmm3, %xmm5
+;;       vpmovsxbw %xmm1, %xmm6
 ;;       vpalignr $8, %xmm1, %xmm1, %xmm3
-;;       vpmovsxbw %xmm3, %xmm6
-;;       vpmullw %xmm6, %xmm5, %xmm5
+;;       vpmovsxbw %xmm3, %xmm7
+;;       vpmullw %xmm6, %xmm4, %xmm4
+;;       vpmullw %xmm7, %xmm5, %xmm5
 ;;       vphaddw %xmm5, %xmm4, %xmm0
 ;;       movq    %rbp, %rsp
 ;;       popq    %rbp
@@ -122,12 +122,12 @@
 ;;       pushq   %rbp
 ;;       movq    %rsp, %rbp
 ;;       vpmovsxbw %xmm0, %xmm7
-;;       vpmovsxbw %xmm1, %xmm3
-;;       vpmullw %xmm3, %xmm7, %xmm7
 ;;       vpalignr $8, %xmm0, %xmm0, %xmm6
 ;;       vpmovsxbw %xmm6, %xmm0
+;;       vpmovsxbw %xmm1, %xmm3
 ;;       vpalignr $8, %xmm1, %xmm1, %xmm6
 ;;       vpmovsxbw %xmm6, %xmm1
+;;       vpmullw %xmm3, %xmm7, %xmm7
 ;;       vpmullw %xmm1, %xmm0, %xmm0
 ;;       vphaddw %xmm0, %xmm7, %xmm7
 ;;       vpmaddwd 0x17(%rip), %xmm7, %xmm7

@@ -21,18 +21,18 @@
 ;; wasm[0]::function[0]:
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
-;;       mov     w13, w2
-;;       mov     w14, #-0xfffc
-;;       adds    x13, x13, x14
+;;       mov     x14, #0xffff0000
+;;       mov     x13, #0
+;;       mov     w15, w2
+;;       mov     w1, #-0xfffc
+;;       adds    x15, x15, x1
 ;;       b.hs    #0x48
-;;   18: ldr     x14, [x0, #0x68]
+;;   20: ldr     x1, [x0, #0x68]
 ;;       ldr     x0, [x0, #0x60]
-;;       mov     x15, #0
 ;;       add     x0, x0, w2, uxtw
-;;       mov     x1, #0xffff0000
-;;       add     x0, x0, x1
-;;       cmp     x13, x14
-;;       csel    x15, x15, x0, hi
+;;       add     x14, x0, x14
+;;       cmp     x15, x1
+;;       csel    x15, x13, x14, hi
 ;;       csdb
 ;;       str     w3, [x15]
 ;;       ldp     x29, x30, [sp], #0x10
@@ -42,18 +42,18 @@
 ;; wasm[0]::function[1]:
 ;;       stp     x29, x30, [sp, #-0x10]!
 ;;       mov     x29, sp
-;;       mov     w13, w2
-;;       mov     w14, #-0xfffc
-;;       adds    x13, x13, x14
+;;       mov     x14, #0xffff0000
+;;       mov     x13, #0
+;;       mov     w15, w2
+;;       mov     w1, #-0xfffc
+;;       adds    x15, x15, x1
 ;;       b.hs    #0xa8
-;;   78: ldr     x14, [x0, #0x68]
+;;   80: ldr     x1, [x0, #0x68]
 ;;       ldr     x0, [x0, #0x60]
-;;       mov     x15, #0
 ;;       add     x0, x0, w2, uxtw
-;;       mov     x1, #0xffff0000
-;;       add     x0, x0, x1
-;;       cmp     x13, x14
-;;       csel    x15, x15, x0, hi
+;;       add     x14, x0, x14
+;;       cmp     x15, x1
+;;       csel    x15, x13, x14, hi
 ;;       csdb
 ;;       ldr     w0, [x15]
 ;;       ldp     x29, x30, [sp], #0x10

@@ -142,11 +142,11 @@
 ;;       movl    $7, %ecx
 ;;       movl    $0, %r8d
 ;;       movl    $4, %r9d
-;;       callq   0xaef
+;;       callq   0xaf3
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $1, %esi
-;;       callq   0xb38
+;;       callq   0xb57
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -154,11 +154,11 @@
 ;;       movl    $0xf, %ecx
 ;;       movl    $1, %r8d
 ;;       movl    $3, %r9d
-;;       callq   0xaef
+;;       callq   0xaf3
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $3, %esi
-;;       callq   0xb38
+;;       callq   0xb57
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -166,7 +166,7 @@
 ;;       movl    $0x14, %ecx
 ;;       movl    $0xf, %r8d
 ;;       movl    $5, %r9d
-;;       callq   0xb77
+;;       callq   0xb96
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -174,7 +174,7 @@
 ;;       movl    $0x15, %ecx
 ;;       movl    $0x1d, %r8d
 ;;       movl    $1, %r9d
-;;       callq   0xb77
+;;       callq   0xb96
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -182,7 +182,7 @@
 ;;       movl    $0x18, %ecx
 ;;       movl    $0xa, %r8d
 ;;       movl    $1, %r9d
-;;       callq   0xb77
+;;       callq   0xb96
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -190,7 +190,7 @@
 ;;       movl    $0xd, %ecx
 ;;       movl    $0xb, %r8d
 ;;       movl    $4, %r9d
-;;       callq   0xb77
+;;       callq   0xb96
 ;;       movq    8(%rsp), %r14
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
@@ -198,7 +198,7 @@
 ;;       movl    $0x13, %ecx
 ;;       movl    $0x14, %r8d
 ;;       movl    $5, %r9d
-;;       callq   0xb77
+;;       callq   0xb96
 ;;       movq    8(%rsp), %r14
 ;;       addq    $0x10, %rsp
 ;;       popq    %rbp
@@ -243,7 +243,7 @@
 ;;       movq    %r14, %rdi
 ;;       movl    $0, %esi
 ;;       movl    4(%rsp), %edx
-;;       callq   0xbc0
+;;       callq   0xbfa
 ;;       addq    $4, %rsp
 ;;       addq    $4, %rsp
 ;;       movq    0x10(%rsp), %r14

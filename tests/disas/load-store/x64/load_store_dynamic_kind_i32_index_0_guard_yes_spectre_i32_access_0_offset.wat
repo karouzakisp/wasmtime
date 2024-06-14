@@ -24,11 +24,11 @@
 ;;       movq    0x68(%rdi), %r10
 ;;       movl    %edx, %esi
 ;;       subq    $4, %r10
-;;       xorq    %rax, %rax
 ;;       movq    %rsi, %r11
 ;;       addq    0x60(%rdi), %r11
+;;       xorq    %rdi, %rdi
 ;;       cmpq    %r10, %rsi
-;;       cmovaq  %rax, %r11
+;;       cmovaq  %rdi, %r11
 ;;       movl    %ecx, (%r11)
 ;;       movq    %rbp, %rsp
 ;;       popq    %rbp
@@ -40,11 +40,11 @@
 ;;       movq    0x68(%rdi), %r10
 ;;       movl    %edx, %esi
 ;;       subq    $4, %r10
-;;       xorq    %rax, %rax
 ;;       movq    %rsi, %r11
 ;;       addq    0x60(%rdi), %r11
+;;       xorq    %rdi, %rdi
 ;;       cmpq    %r10, %rsi
-;;       cmovaq  %rax, %r11
+;;       cmovaq  %rdi, %r11
 ;;       movl    (%r11), %eax
 ;;       movq    %rbp, %rsp
 ;;       popq    %rbp

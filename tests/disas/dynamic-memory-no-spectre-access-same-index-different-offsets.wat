@@ -45,8 +45,8 @@
 ;;     stack_limit = gv2
 ;;
 ;;                                 block0(v0: i64, v1: i64, v2: i32):
-;; @0047                               v7 = load.i64 notrap aligned v0+104
 ;; @0047                               v6 = uextend.i64 v2
+;; @0047                               v7 = load.i64 notrap aligned v0+104
 ;; @0047                               v8 = icmp ugt v6, v7
 ;; @0047                               brif v8, block2, block3
 ;;
@@ -65,8 +65,8 @@
 ;;                                 block5:
 ;; @004c                               v17 = iconst.i64 4
 ;; @004c                               v18 = iadd.i64 v10, v17  ; v17 = 4
-;; @004c                               v19 = load.i32 little heap v18
 ;; @0051                               v21 = iconst.i64 0x0010_0003
+;; @004c                               v19 = load.i32 little heap v18
 ;; @0051                               v22 = uadd_overflow_trap.i64 v6, v21, heap_oob  ; v21 = 0x0010_0003
 ;; @0051                               v24 = icmp ugt v22, v7
 ;; @0051                               brif v24, block6, block7
@@ -96,8 +96,8 @@
 ;;     stack_limit = gv2
 ;;
 ;;                                 block0(v0: i64, v1: i64, v2: i32, v3: i32, v4: i32, v5: i32):
-;; @005d                               v7 = load.i64 notrap aligned v0+104
 ;; @005d                               v6 = uextend.i64 v2
+;; @005d                               v7 = load.i64 notrap aligned v0+104
 ;; @005d                               v8 = icmp ugt v6, v7
 ;; @005d                               brif v8, block2, block3
 ;;
@@ -116,8 +116,8 @@
 ;;                                 block5:
 ;; @0064                               v16 = iconst.i64 4
 ;; @0064                               v17 = iadd.i64 v10, v16  ; v16 = 4
-;; @0064                               store.i32 little heap v4, v17
 ;; @006b                               v19 = iconst.i64 0x0010_0003
+;; @0064                               store.i32 little heap v4, v17
 ;; @006b                               v20 = uadd_overflow_trap.i64 v6, v19, heap_oob  ; v19 = 0x0010_0003
 ;; @006b                               v22 = icmp ugt v20, v7
 ;; @006b                               brif v22, block6, block7

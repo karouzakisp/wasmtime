@@ -24,9 +24,9 @@
 ;;       sd      s0, 0(sp)
 ;;       mv      s0, sp
 ;;       ld      a4, 0x68(a0)
-;;       ld      a1, 0x60(a0)
+;;       ld      a0, 0x60(a0)
+;;       add     a1, a0, a2
 ;;       sltu    a0, a4, a2
-;;       add     a1, a1, a2
 ;;       lui     a2, 1
 ;;       add     a1, a1, a2
 ;;       neg     a4, a0
@@ -44,9 +44,9 @@
 ;;       sd      s0, 0(sp)
 ;;       mv      s0, sp
 ;;       ld      a3, 0x68(a0)
-;;       ld      a1, 0x60(a0)
+;;       ld      a0, 0x60(a0)
+;;       add     a1, a0, a2
 ;;       sltu    a0, a3, a2
-;;       add     a1, a1, a2
 ;;       lui     a2, 1
 ;;       add     a1, a1, a2
 ;;       neg     a4, a0

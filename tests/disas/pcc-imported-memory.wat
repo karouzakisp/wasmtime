@@ -50,8 +50,8 @@
 ;;   2c: testl   %eax, %eax
 ;;       jle     0x45
 ;;   34: movq    0x58(%rdi), %rcx
-;;       movq    (%rcx), %rcx
 ;;       movl    %eax, %eax
+;;       movq    (%rcx), %rcx
 ;;       movl    (%rcx, %rax), %esi
 ;;       jmp     0x47
 ;;   45: xorl    %esi, %esi
