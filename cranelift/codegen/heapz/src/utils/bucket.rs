@@ -7,7 +7,7 @@ pub struct Bucket<V: Clone> {
 impl<V: Clone> Bucket<V> {
     pub fn new(size: usize) -> Self {
         let fill_size =
-            (((if size > 0 { log(size) } else { 0 }) + 1) as f32 * 1.4).floor() as usize;
+            (((if size > 0 { log(size) } else { 0 }) + 2) as f32 * 1.4).floor() as usize;
         Bucket {
             store: vec![vec![]; fill_size],
         }
