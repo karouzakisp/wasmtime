@@ -71,7 +71,7 @@ pub(crate) struct Elaborator<'a> {
     /// of the skeleton instructions.
     skeleton_inst_order: VecDeque<Inst>,
     /// A map from each Value to the instructions that use it.
-    value_users: SecondaryMap<Value, SmallVec<[Inst; 8]>>,
+    value_users: SecondaryMap<Value, FxHashSet<Inst>>,
     /// A map that tracks how many dependencies (either true data dependencies
     /// or dependencies due to skeleton instructions' program order) are
     /// remainining for each instruction to get scheduled.
@@ -173,7 +173,7 @@ impl<'a> Elaborator<'a> {
             inst_ordering_info_map,
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
-            value_users: SecondaryMap::new(),
+            value_users: SecondaryMap::with_capacity(128),
             ready_queue: RankPairingHeap::single_pass_max(),
             stats,
             ctrl_plane,
@@ -496,7 +496,7 @@ impl<'a> Elaborator<'a> {
                             }
                             ValueDef::Union(_, _) => trace!("Arg {} is a UNION NODE!!!!", arg),
                         }
-                        self.value_users[arg].push(inst);
+                        self.value_users[arg].insert(inst);
                     }
 
                     // Make sure that the argument comes from an instruction result.
@@ -810,11 +810,11 @@ impl<'a> Elaborator<'a> {
                 // TODO: an alternative for better optimization is to just add one bit for deleted
                 // and maybe do the deletion afterwards if it is necessary. This improve
                 // performance.
-                self.value_users[arg].retain(|&mut arg_user| arg_user != inserted_inst);
+                self.value_users[arg].remove(&inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[arg].len() == 1 {
-                    let last_user = self.value_users[arg].get(0).unwrap().clone();
+                    let last_user = self.value_users[arg].iter().next().unwrap().clone();
                     self.inst_ordering_info_map[last_user].last_use_count += 1;
                     self.ready_queue
                         .update(&last_user, self.inst_ordering_info_map[last_user]);
@@ -965,7 +965,7 @@ impl<'a> Elaborator<'a> {
         // Remove the block terminator from its arguments' value users sets.
         // NOTE: possibly unnecessary?
         for arg in self.func.dfg.inst_values(block_terminator) {
-            self.value_users[arg].retain(|&mut arg_user| arg_user != block_terminator);
+            self.value_users[arg].remove(&block_terminator);
         }
 
         // FIXME: only needed for debugging... ////////////////////////////////
