@@ -31,7 +31,7 @@ cranelift-bforest = { workspace = true }
 cranelift-bitset = { workspace = true }
 cranelift-control = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
-heapz = "1.1.4"
+heapz = { path = "heapz" }
 target-lexicon = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, optional = true }
@@ -91,43 +91,17 @@ x86 = []
 arm64 = []
 s390x = []
 riscv64 = []
-<<<<<<< HEAD
 pulley = [
     "dep:pulley-interpreter",
     "pulley-interpreter/encode",
     "pulley-interpreter/disas",
     "cranelift-codegen-meta/pulley",
 ]
-||||||| parent of 5f740f114 (debug with trace to fix non elaborated args on terminator)
-pulley = ["dep:pulley-interpreter", "pulley-interpreter/encode", "pulley-interpreter/disas"]
-=======
-pulley = [
-    "dep:pulley-interpreter",
-    "pulley-interpreter/encode",
-    "pulley-interpreter/disas",
-]
->>>>>>> 5f740f114 (debug with trace to fix non elaborated args on terminator)
 # Enable the ISA target for the host machine
 host-arch = []
 
 # Option to enable all architectures.
-<<<<<<< HEAD
-all-arch = ["all-native-arch", "pulley"]
-
-# Option to enable all architectures that correspond to an actual native target
-# (that is, exclude Pulley).
-all-native-arch = ["x86", "arm64", "s390x", "riscv64"]
-||||||| parent of 5f740f114 (debug with trace to fix non elaborated args on terminator)
-all-arch = [
-    "x86",
-    "arm64",
-    "s390x",
-    "riscv64",
-    "pulley",
-]
-=======
 all-arch = ["x86", "arm64", "s390x", "riscv64", "pulley"]
->>>>>>> 5f740f114 (debug with trace to fix non elaborated args on terminator)
 
 enable-serde = [
     "serde",
