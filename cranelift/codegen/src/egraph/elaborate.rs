@@ -12,6 +12,7 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -56,13 +57,13 @@ pub(crate) struct Elaborator<'a> {
     /// Values that opt rules have indicated should be rematerialized
     /// in every block they are used (e.g., immediates or other
     /// "cheap-to-compute" ops).
-    _remat_values: &'a FxHashSet<Value>,
+    remat_values: &'a FxHashSet<Value>,
     /// Results from the elab stack.
     _elab_result_stack: Vec<ElaboratedValue>,
     /// Explicitly-unrolled block elaboration stack.
     block_stack: Vec<BlockStackEntry>,
     /// Copies of values that have been rematerialized.
-    _remat_copies: FxHashMap<(Block, Value), Value>,
+    remat_copies: FxHashMap<(Block, Value), Value>,
     /// A map from instructions to their ordering information (LUC, CP,
     /// original program order sequence and information for the LICM
     /// optimization).
@@ -164,10 +165,10 @@ impl<'a> Elaborator<'a> {
             value_to_best_value,
             loop_stack: smallvec![],
             _cur_block: Block::reserved_value(),
-            _remat_values: remat_values,
+            remat_values: remat_values,
             _elab_result_stack: vec![],
             block_stack: vec![],
-            _remat_copies: FxHashMap::default(),
+            remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
@@ -369,7 +370,7 @@ impl<'a> Elaborator<'a> {
     /// Possibly rematerialize the instruction producing the value in
     /// `arg` and rewrite `arg` to refer to it, if needed. Returns
     /// `true` if a rewrite occurred.
-    fn _maybe_remat_arg(
+    fn maybe_remat_arg(
         remat_values: &FxHashSet<Value>,
         func: &mut Function,
         remat_copies: &mut FxHashMap<(Block, Value), Value>,
@@ -641,6 +642,47 @@ impl<'a> Elaborator<'a> {
                 self.func.layout.inst_block(block_terminator).unwrap(),
             );
 
+            let elaborated_args: Vec<Value> = self
+                .func
+                .dfg
+                .inst_values(inst_to_insert)
+                .map(|arg| {
+                    let best_value = self.value_to_best_value[arg].1;
+                    trace!(
+                        "Getting best value for inst {} with arg {} to best_arg {}",
+                        inst_to_insert,
+                        arg,
+                        best_value
+                    );
+                    match self.func.dfg.value_def(best_value) {
+                        ValueDef::Union(..) => {
+                            panic!("egraph union node found!");
+                        }
+                        _ => {}
+                    };
+                    if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
+                        if let Some(_elab_arg_block) = self.func.layout.inst_block(arg_inst) {
+                            let elab_value = self
+                                .value_to_elaborated_value
+                                .get(&best_value)
+                                .unwrap()
+                                .value;
+                            match self.func.dfg.value_def(elab_value) {
+                                ValueDef::Union(..) => {
+                                    panic!("egraph union node found!");
+                                }
+                                _ => {}
+                            };
+                            elab_value
+                        } else {
+                            best_value
+                        }
+                    } else {
+                        best_value
+                    }
+                })
+                .collect();
+
             // TODO: Now that we have the location for the instruction, check
             // if any of its args are remat values. If so, and if we don't have
             // a copy of the rematerializing instruction for this block yet,
@@ -654,7 +696,29 @@ impl<'a> Elaborator<'a> {
             // generated value along with the users of that value.
             // For the newly generated instruction we don't decremenent dependency
             // count of other instructions that are the results of the users of the results
-            let remat_arg = false;
+            let mut remat_arg = false;
+            let mut arg_values: Vec<ElaboratedValue> = elaborated_args
+                .iter()
+                .map(|arg_value| {
+                    let best_value = self.value_to_best_value[*arg_value].1;
+                    self.value_to_elaborated_value.get(&best_value).unwrap()
+                })
+                .cloned()
+                .collect();
+
+            for arg_value in arg_values.iter_mut() {
+                if Self::maybe_remat_arg(
+                    &self.remat_values,
+                    &mut self.func,
+                    &mut self.remat_copies,
+                    insert_block,
+                    before,
+                    arg_value,
+                    &mut self.stats,
+                ) {
+                    remat_arg = true;
+                };
+            }
 
             // Now we need to place `inst` at the computed location (just
             // before `before`). Note that `inst` may already have been
@@ -744,47 +808,6 @@ impl<'a> Elaborator<'a> {
                     }
                     inst_to_insert
                 };
-
-                let elaborated_args: Vec<Value> = self
-                    .func
-                    .dfg
-                    .inst_values(inst_to_insert)
-                    .map(|arg| {
-                        let best_value = self.value_to_best_value[arg].1;
-                        trace!(
-                            "Getting best value for inst {} with arg {} to best_arg {}",
-                            inst_to_insert,
-                            arg,
-                            best_value
-                        );
-                        match self.func.dfg.value_def(best_value) {
-                            ValueDef::Union(..) => {
-                                panic!("egraph union node found!");
-                            }
-                            _ => {}
-                        };
-                        if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
-                            if let Some(_elab_arg_block) = self.func.layout.inst_block(arg_inst) {
-                                let elab_value = self
-                                    .value_to_elaborated_value
-                                    .get(&best_value)
-                                    .unwrap()
-                                    .value;
-                                match self.func.dfg.value_def(elab_value) {
-                                    ValueDef::Union(..) => {
-                                        panic!("egraph union node found!");
-                                    }
-                                    _ => {}
-                                };
-                                elab_value
-                            } else {
-                                best_value
-                            }
-                        } else {
-                            best_value
-                        }
-                    })
-                    .collect();
 
                 // FIXME: only for debugging //////////////////////////////////
                 self.func
