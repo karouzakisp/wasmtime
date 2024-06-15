@@ -57,8 +57,6 @@ pub(crate) struct Elaborator<'a> {
     /// in every block they are used (e.g., immediates or other
     /// "cheap-to-compute" ops).
     _remat_values: &'a FxHashSet<Value>,
-    /// Results from the elab stack.
-    _elab_result_stack: Vec<ElaboratedValue>,
     /// Explicitly-unrolled block elaboration stack.
     block_stack: Vec<BlockStackEntry>,
     /// Copies of values that have been rematerialized.
@@ -167,7 +165,6 @@ impl<'a> Elaborator<'a> {
             _loop_stack: smallvec![],
             _cur_block: Block::reserved_value(),
             _remat_values: remat_values,
-            _elab_result_stack: vec![],
             block_stack: vec![],
             _remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
@@ -430,7 +427,7 @@ impl<'a> Elaborator<'a> {
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
-        // NOTE: this might be unecessary since it might always end up empty here.
+        // NOTE: we might have a logic error if this isn't unecessary (or maybe not?)...
         SecondaryMap::clear(&mut self.value_users);
 
         // Iterate over all skeleton instructions to find true data dependencies.
@@ -470,7 +467,6 @@ impl<'a> Elaborator<'a> {
                 let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
                     SecondaryMap::with_default(false);
                 for arg in self.func.dfg.inst_values(inst) {
-                    // TODO: there probably exists a less expensive way to get unique args.
                     // Skip already visited arguments in case the instruction uses
                     // the same argument value multiple times. Basically, if we
                     // have `add x0, x1, x1` we don't want to add two dependencies
@@ -489,13 +485,6 @@ impl<'a> Elaborator<'a> {
                         .iter()
                         .any(|&user_inst| user_inst == inst)
                     {
-                        match self.func.dfg.value_def(arg) {
-                            ValueDef::Result(inst, _) => trace!("Arg {} comes from {}", arg, inst),
-                            ValueDef::Param(block, _) => {
-                                trace!("Arg {} is a block param of {}", arg, block)
-                            }
-                            ValueDef::Union(_, _) => trace!("Arg {} is a UNION NODE!!!!", arg),
-                        }
                         self.value_users[arg].insert(inst);
                     }
 
@@ -580,6 +569,7 @@ impl<'a> Elaborator<'a> {
     /// heuristics.
     fn schedule_insts(&mut self, block: Block) {
         trace!("------- Starting scheduling pass for {} -------", block);
+
         // Take the block terminator. It should be the only instruction left
         // inside the block, and be a terminator.
         let block_terminator = self.func.layout.first_inst(block).unwrap();
@@ -588,21 +578,7 @@ impl<'a> Elaborator<'a> {
             .opcode()
             .is_terminator());
 
-        // FIXME: only needed for debugging... ////////////////////////////////
-        let mut elaborated_instructions: SecondaryMap<Inst, bool> =
-            SecondaryMap::with_default(false);
-        let mut instruction_in_ready_queue: SecondaryMap<Inst, bool> =
-            SecondaryMap::with_default(false);
-        ///////////////////////////////////////////////////////////////////////
-
-        // NOTE: The ready queue can only be empty here if (and only if) the
-        // block ought to have just the block terminator inside it. Maybe
-        // formulate an analogous assertion.
-
         while let Some(mut inst_to_insert) = self.ready_queue.pop() {
-            // FIXME: only needed for debugging... ////////////////////////////
-            assert!(inst_to_insert != block_terminator);
-            ///////////////////////////////////////////////////////////////////
             trace!(
                 "  _____ New ready-queue instruction: {} _____",
                 inst_to_insert
@@ -661,7 +637,7 @@ impl<'a> Elaborator<'a> {
             // `dependencies_count` map etc. It is possible that this
             // duplication might move in the `compute_ddg_and_value_users` pass!
             trace!("Trying to insert {} before {}", inst_to_insert, before);
-            trace!("{} redudant =: {}", inst_to_insert, redundant_inst);
+            trace!("{} redudant := {}", inst_to_insert, redundant_inst);
             if !redundant_inst {
                 inst_to_insert =
                     if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
@@ -739,12 +715,6 @@ impl<'a> Elaborator<'a> {
                             arg,
                             best_value
                         );
-                        match self.func.dfg.value_def(best_value) {
-                            ValueDef::Union(..) => {
-                                panic!("egraph union node found!");
-                            }
-                            _ => {}
-                        };
                         if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                             if self.func.layout.inst_block(arg_inst).is_some() {
                                 let elab_value = self
@@ -752,12 +722,6 @@ impl<'a> Elaborator<'a> {
                                     .get(&best_value)
                                     .unwrap()
                                     .value;
-                                match self.func.dfg.value_def(elab_value) {
-                                    ValueDef::Union(..) => {
-                                        panic!("egraph union node found!");
-                                    }
-                                    _ => {}
-                                };
                                 elab_value
                             } else {
                                 best_value
@@ -767,24 +731,6 @@ impl<'a> Elaborator<'a> {
                         }
                     })
                     .collect();
-
-                // FIXME: only for debugging //////////////////////////////////
-                self.func
-                    .dfg
-                    .inst_results(inst_to_insert)
-                    .iter()
-                    .for_each(|&result| match self.func.dfg.value_def(result) {
-                        ValueDef::Union(..) => {
-                            panic!("egraph union node found at line 751!");
-                        }
-                        _ => {}
-                    });
-
-                assert!(
-                    elaborated_instructions[inst_to_insert] == false,
-                    "We already inserted this instruction in this block through the ready queue!",
-                );
-                ///////////////////////////////////////////////////////////////
 
                 self.func
                     .dfg
@@ -800,16 +746,9 @@ impl<'a> Elaborator<'a> {
             // because all the results were already present.
             let inserted_inst = inst_to_insert;
 
-            // FIXME: only needed for debugging... ////////////////////////////
-            elaborated_instructions[inserted_inst] = true;
-            ///////////////////////////////////////////////////////////////////
-
             // Update the LUC (last-use-counts) of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
-                // TODO: an alternative for better optimization is to just add one bit for deleted
-                // and maybe do the deletion afterwards if it is necessary. This improve
-                // performance.
                 self.value_users[arg].remove(&inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
@@ -849,15 +788,7 @@ impl<'a> Elaborator<'a> {
                             next_skeleton_inst,
                             self.inst_ordering_info_map[next_skeleton_inst],
                         );
-                        assert!(
-                            !elaborated_instructions[next_skeleton_inst],
-                            "We already inserted this skeleton instruction in this block through the ready queue!",
-                        );
                         skeleton_already_inserted = true;
-                        // FIXME: only needed for debugging... ////////////////
-                        assert!(!instruction_in_ready_queue[next_skeleton_inst]);
-                        instruction_in_ready_queue[next_skeleton_inst] = true;
-                        ///////////////////////////////////////////////////////
                     }
                 }
             }
@@ -891,43 +822,12 @@ impl<'a> Elaborator<'a> {
                             trace!("Inserting pure {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
-
-                            // FIXME: only needed for debugging... ////////
-                            assert!(
-                                !elaborated_instructions[user_inst],
-                                "We already inserted this skeleton instruction in this block through the ready queue!",
-                            );
-                            assert!(
-                                user_inst != inserted_inst,
-                                "We have already inserted {} to the layout!",
-                                user_inst
-                            );
-                            assert!(!instruction_in_ready_queue[user_inst]);
-                            instruction_in_ready_queue[user_inst] = true;
-                            ///////////////////////////////////////////////
                         } else if !skeleton_already_inserted
                             && Some(&user_inst) == self.skeleton_inst_order.front()
                         {
                             trace!("Inserting skeleton {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
-
-                            // FIXME: only needed for debugging... ////////
-                            assert!(
-                                !elaborated_instructions[user_inst],
-                                "We already inserted this skeleton instruction in this block through the ready queue!",
-                            );
-                            assert!(!instruction_in_ready_queue[user_inst]);
-                            instruction_in_ready_queue[user_inst] = true;
-                            ///////////////////////////////////////////////
-                        } else {
-                            trace!("While it has 0 dependencies, {} will not get put to the ready queue...", user_inst);
-                            if skeleton_already_inserted {
-                                trace!("That's because this skeleton has already been inserted.");
-                            } else {
-                                trace!("That's probably because this skeleton comes from an already-elaborated block.");
-                                assert_ne!(self.func.layout.inst_block(user_inst), Some(block));
-                            }
                         }
                     }
                 }
@@ -967,17 +867,6 @@ impl<'a> Elaborator<'a> {
         for arg in self.func.dfg.inst_values(block_terminator) {
             self.value_users[arg].remove(&block_terminator);
         }
-
-        // FIXME: only needed for debugging... ////////////////////////////////
-        self.func
-            .dfg
-            .inst_args(block_terminator)
-            .iter()
-            .for_each(|&arg| match self.func.dfg.value_def(arg) {
-                ValueDef::Union(..) => panic!("Terminator has union param"),
-                _ => {}
-            });
-        ///////////////////////////////////////////////////////////////////////
     }
 
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
@@ -993,7 +882,6 @@ impl<'a> Elaborator<'a> {
                     self.value_to_elaborated_value.increment_depth();
 
                     self.compute_ddg_and_value_users(block);
-                    // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
