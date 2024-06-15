@@ -22,7 +22,7 @@ use smallvec::{smallvec, SmallVec};
 pub(crate) struct Elaborator<'a> {
     func: &'a mut Function,
     domtree: &'a DominatorTreePreorder,
-    _loop_analysis: &'a LoopAnalysis,
+    loop_analysis: &'a LoopAnalysis,
     /// Map from Value that is produced by a pure Inst (and was thus
     /// not in the side-effecting skeleton) to the value produced by
     /// an elaborated inst (placed in the layout) to whose results we
@@ -50,7 +50,7 @@ pub(crate) struct Elaborator<'a> {
     /// (tree of union value-nodes).
     value_to_best_value: SecondaryMap<Value, BestEntry>,
     /// Stack of blocks and loops in current elaboration path.
-    _loop_stack: SmallVec<[LoopStackEntry; 8]>,
+    loop_stack: SmallVec<[LoopStackEntry; 8]>,
     /// The current block into which we are elaborating.
     _cur_block: Block,
     /// Values that opt rules have indicated should be rematerialized
@@ -120,27 +120,25 @@ impl Ord for BestEntry {
 
 #[derive(Clone, Copy, Debug)]
 struct ElaboratedValue {
-    _in_block: Block,
+    in_block: Block,
     value: Value,
 }
 
 #[derive(Clone, Debug)]
 struct LoopStackEntry {
     /// The loop identifier.
-    _lp: Loop,
+    lp: Loop,
     /// The hoist point: a block that immediately dominates this
     /// loop. May not be an immediate predecessor, but will be a valid
     /// point to place all loop-invariant ops: they must depend only
     /// on inputs that dominate the loop, so are available at (the end
     /// of) this block.
-    _hoist_block: Block,
-    /// The depth in the scope map.
-    _scope_depth: u32,
+    hoist_block: Block,
 }
 
 #[derive(Clone, Debug)]
 enum BlockStackEntry {
-    Elaborate { block: Block, _idom: Option<Block> },
+    Elaborate { block: Block, idom: Option<Block> },
     Pop,
 }
 
@@ -161,10 +159,10 @@ impl<'a> Elaborator<'a> {
         Self {
             func,
             domtree,
-            _loop_analysis: loop_analysis,
+            loop_analysis,
             value_to_elaborated_value: ScopedHashMap::with_capacity(num_values),
             value_to_best_value,
-            _loop_stack: smallvec![],
+            loop_stack: smallvec![],
             _cur_block: Block::reserved_value(),
             _remat_values: remat_values,
             _elab_result_stack: vec![],
@@ -181,21 +179,21 @@ impl<'a> Elaborator<'a> {
     }
 
     // NOTE: this is unecessary until we re-enable the LICM optimization
-    fn _start_block(&mut self, idom: Option<Block>, block: Block) {
+    fn start_block(&mut self, idom: Option<Block>, block: Block) {
         trace!(
             "start_block: block {:?} with idom {:?} at loop depth {:?} scope depth {}",
             block,
             idom,
-            self._loop_stack.len(),
+            self.loop_stack.len(),
             self.value_to_elaborated_value.depth()
         );
 
         // Pop any loop levels we're no longer in.
-        while let Some(inner_loop) = self._loop_stack.last() {
-            if self._loop_analysis.is_in_loop(block, inner_loop._lp) {
+        while let Some(inner_loop) = self.loop_stack.last() {
+            if self.loop_analysis.is_in_loop(block, inner_loop.lp) {
                 break;
             }
-            self._loop_stack.pop();
+            self.loop_stack.pop();
         }
 
         // Note that if the *entry* block is a loop header, we will
@@ -205,29 +203,28 @@ impl<'a> Elaborator<'a> {
         // `LoopAnalysis` will otherwise still make note of this loop
         // and loop depths will not match.
         if let Some(idom) = idom {
-            if let Some(lp) = self._loop_analysis.is_loop_header(block) {
-                self._loop_stack.push(LoopStackEntry {
-                    _lp: lp,
+            if let Some(lp) = self.loop_analysis.is_loop_header(block) {
+                self.loop_stack.push(LoopStackEntry {
+                    lp,
                     // Any code hoisted out of this loop will have code
                     // placed in `idom`, and will have def mappings
                     // inserted in to the scoped hashmap at that block's
                     // level.
-                    _hoist_block: idom,
-                    _scope_depth: (self.value_to_elaborated_value.depth() - 1) as u32,
+                    hoist_block: idom,
                 });
                 trace!(
                     " -> loop header, pushing; depth now {}",
-                    self._loop_stack.len()
+                    self.loop_stack.len()
                 );
             }
         } else {
             debug_assert!(
-                self._loop_analysis.is_loop_header(block).is_none(),
+                self.loop_analysis.is_loop_header(block).is_none(),
                 "Entry block (domtree root) cannot be a loop header!"
             );
         }
 
-        trace!("block {}: loop stack is {:?}", block, self._loop_stack);
+        trace!("block {}: loop stack is {:?}", block, self.loop_stack);
 
         self._cur_block = block;
     }
@@ -387,7 +384,7 @@ impl<'a> Elaborator<'a> {
         // would affect, e.g., adds-with-one-constant-arg, which are
         // currently rematerialized. Right now we don't do this, to
         // avoid the need for another fixpoint loop here.
-        if arg._in_block != insert_block && remat_values.contains(&arg.value) {
+        if arg.in_block != insert_block && remat_values.contains(&arg.value) {
             let new_value = match remat_copies.entry((insert_block, arg.value)) {
                 HashEntry::Occupied(o) => *o.get(),
                 HashEntry::Vacant(v) => {
@@ -413,8 +410,9 @@ impl<'a> Elaborator<'a> {
     ///
     /// It also initializes the ready queue with all instructions that have 0
     /// dependencies after the pass.
-    fn compute_ddg_and_value_users(&mut self, block: Block) {
+    fn compute_ddg_and_value_users(&mut self, idom: Option<Block>, block: Block) {
         trace!("------- Starting DDG pass for {} -------", block);
+        self.start_block(idom, block);
 
         let block_terminator = self.func.layout.last_inst(block).unwrap();
         trace!("{} has as terminator {}", block, block_terminator);
@@ -692,7 +690,7 @@ impl<'a> Elaborator<'a> {
 
                             let elab_value = ElaboratedValue {
                                 value: *new_result,
-                                _in_block: insert_block,
+                                in_block: insert_block,
                             };
                             let best_result = self.value_to_best_value[*result];
                             self.value_to_elaborated_value
@@ -717,7 +715,7 @@ impl<'a> Elaborator<'a> {
                         for &result in self.func.dfg.inst_results(inst_to_insert) {
                             let elab_value = ElaboratedValue {
                                 value: result,
-                                _in_block: insert_block,
+                                in_block: insert_block,
                             };
                             let best_result = self.value_to_best_value[result];
                             self.value_to_elaborated_value
@@ -746,19 +744,24 @@ impl<'a> Elaborator<'a> {
                             _ => {}
                         };
                         if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
-                            if self.func.layout.inst_block(arg_inst).is_some() {
-                                let elab_value = self
-                                    .value_to_elaborated_value
-                                    .get(&best_value)
-                                    .unwrap()
-                                    .value;
-                                match self.func.dfg.value_def(elab_value) {
-                                    ValueDef::Union(..) => {
-                                        panic!("egraph union node found!");
-                                    }
-                                    _ => {}
-                                };
-                                elab_value
+                            // FIXME: check if the dominates() call is correct or even necessary.
+                            if let Some(elab_arg_block) = self.func.layout.inst_block(arg_inst) {
+                                if self.domtree.dominates(elab_arg_block, block) {
+                                    let elab_value = self
+                                        .value_to_elaborated_value
+                                        .get(&best_value)
+                                        .unwrap()
+                                        .value;
+                                    match self.func.dfg.value_def(elab_value) {
+                                        ValueDef::Union(..) => {
+                                            panic!("egraph union node found!");
+                                        }
+                                        _ => {}
+                                    };
+                                    elab_value
+                                } else {
+                                    best_value
+                                }
                             } else {
                                 best_value
                             }
@@ -785,6 +788,88 @@ impl<'a> Elaborator<'a> {
                     "We already inserted this instruction in this block through the ready queue!",
                 );
                 ///////////////////////////////////////////////////////////////
+
+                // Compute max loop depth.
+                //
+                // Note that if there are no arguments then this instruction
+                // is allowed to get hoisted up one loop. This is not
+                // usually used since no-argument values are things like
+                // constants which are typically rematerialized, but for the
+                // `vconst` instruction 128-bit constants aren't as easily
+                // rematerialized. They're hoisted out of inner loops but
+                // not to the function entry which may run the risk of
+                // placing too much register pressure on the entire
+                // function. This is modeled with the `.saturating_sub(1)`
+                // as the default if there's otherwise no maximum.
+                let loop_hoist_level = self
+                    .func
+                    .dfg
+                    .inst_values(inst_to_insert)
+                    .map(|value| {
+                        let value = self.value_to_best_value[value].1;
+                        // Find the outermost loop level at which
+                        // the value's defining block *is not* a
+                        // member. This is the loop-nest level
+                        // whose hoist-block we hoist to.
+                        let hoist_level = self
+                            .loop_stack
+                            .iter()
+                            .position(|loop_entry| {
+                                !self.loop_analysis.is_in_loop(
+                                    self.value_to_elaborated_value.get(&value).unwrap().in_block,
+                                    loop_entry.lp,
+                                )
+                            })
+                            .unwrap_or(self.loop_stack.len());
+                        trace!(
+                            " -> arg: elab_value {:?} hoist level {:?}",
+                            value,
+                            hoist_level
+                        );
+                        hoist_level
+                    })
+                    .max()
+                    .unwrap_or(self.loop_stack.len().saturating_sub(1));
+                trace!(
+                    " -> loop hoist level: {:?}; cur loop depth: {:?}, loop_stack: {:?}",
+                    loop_hoist_level,
+                    self.loop_stack.len(),
+                    self.loop_stack,
+                );
+
+                // We know that this is a pure inst, because
+                // non-pure roots have already been placed in the
+                // value-to-elab'd-value map, so they will not
+                // reach this stage of processing.
+                //
+                // We now must determine the location at which we
+                // place the instruction. This is the current
+                // block *unless* we hoist above a loop when all
+                // args are loop-invariant (and this op is pure).
+                let (before, insert_block) = if loop_hoist_level == self.loop_stack.len() {
+                    // Depends on some value at the current
+                    // loop depth, or remat forces it here:
+                    // place it at the current location.
+                    (before, self.func.layout.inst_block(before).unwrap())
+                } else {
+                    // Does not depend on any args at current
+                    // loop depth: hoist out of loop.
+                    self.stats.elaborate_licm_hoist += 1;
+                    let data = &self.loop_stack[loop_hoist_level];
+                    // `data.hoist_block` should dominate `before`'s block.
+                    let before_block = self.func.layout.inst_block(before).unwrap();
+                    debug_assert!(self.domtree.dominates(data.hoist_block, before_block));
+                    // Determine the instruction at which we
+                    // insert in `data.hoist_block`.
+                    let before = self.func.layout.last_inst(data.hoist_block).unwrap();
+                    (before, data.hoist_block)
+                };
+
+                trace!(
+                    " -> decided to place: before {} insert_block {}",
+                    before,
+                    insert_block
+                );
 
                 self.func
                     .dfg
@@ -983,16 +1068,16 @@ impl<'a> Elaborator<'a> {
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
         self.block_stack.push(BlockStackEntry::Elaborate {
             block: self.func.layout.entry_block().unwrap(),
-            _idom: None,
+            idom: None,
         });
 
         while let Some(top) = self.block_stack.pop() {
             match top {
-                BlockStackEntry::Elaborate { block, _idom: _ } => {
+                BlockStackEntry::Elaborate { block, idom } => {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
 
-                    self.compute_ddg_and_value_users(block);
+                    self.compute_ddg_and_value_users(idom, block);
                     // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
 
@@ -1006,7 +1091,7 @@ impl<'a> Elaborator<'a> {
                     for child in self.ctrl_plane.shuffled(domtree.children(block)) {
                         self.block_stack.push(BlockStackEntry::Elaborate {
                             block: child,
-                            _idom: Some(block),
+                            idom: Some(block),
                         });
                     }
                     // Reverse what we just pushed so we elaborate in
