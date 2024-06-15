@@ -490,7 +490,15 @@ impl<'a> Elaborator<'a> {
                         match self.func.dfg.value_def(arg) {
                             ValueDef::Result(inst, _) => trace!("Arg {} comes from {}", arg, inst),
                             ValueDef::Param(block, _) => {
-                                trace!("Arg {} is a block param of {}", arg, block)
+                                trace!("Arg {} is a block param of {}", arg, block);
+                                // FIXME: consider using a different data structure.
+                                self.value_to_elaborated_value.insert_if_absent(
+                                    arg,
+                                    ElaboratedValue {
+                                        in_block: block,
+                                        value: arg,
+                                    },
+                                );
                             }
                             ValueDef::Union(_, _) => trace!("Arg {} is a UNION NODE!!!!", arg),
                         }
@@ -661,69 +669,81 @@ impl<'a> Elaborator<'a> {
             trace!("Trying to insert {} before {}", inst_to_insert, before);
             trace!("{} redudant =: {}", inst_to_insert, redundant_inst);
             if !redundant_inst {
-                inst_to_insert =
-                    if self.func.layout.inst_block(inst_to_insert).is_some() || remat_arg {
-                        // Clone the instruction.
-                        let new_inst = self.func.dfg.clone_inst(inst_to_insert);
+                inst_to_insert = if self.func.layout.inst_block(inst_to_insert).is_some()
+                    || remat_arg
+                {
+                    // Clone the instruction.
+                    let new_inst = self.func.dfg.clone_inst(inst_to_insert);
+
+                    trace!(
+                        " -> inst {} already has a location; cloned to {}",
+                        inst_to_insert,
+                        new_inst
+                    );
+
+                    // Create mappings in the value-to-elab'd-value map from
+                    // original results to cloned results, and generate the
+                    // necessary value_users maps.
+                    let result_pairs: Vec<(Value, Value)> = self
+                        .func
+                        .dfg
+                        .inst_results(inst_to_insert)
+                        .iter()
+                        .cloned()
+                        .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
+                        .collect();
+                    for (result, new_result) in result_pairs.iter() {
+                        // Clone the value_users for each newly-generated result using the maps
+                        // from the old results.
+                        self.value_users[*new_result] = self.value_users[*result].clone();
+
+                        let elab_value = ElaboratedValue {
+                            value: *new_result,
+                            in_block: insert_block,
+                        };
+                        let best_result = self.value_to_best_value[*result];
+                        self.value_to_elaborated_value
+                            .insert_if_absent(best_result.1, elab_value);
 
                         trace!(
-                            " -> inst {} already has a location; cloned to {}",
-                            inst_to_insert,
-                            new_inst
-                        );
-
-                        // Create mappings in the value-to-elab'd-value map from
-                        // original results to cloned results, and generate the
-                        // necessary value_users maps.
-                        let result_pairs: Vec<(Value, Value)> = self
-                            .func
-                            .dfg
-                            .inst_results(inst_to_insert)
-                            .iter()
-                            .cloned()
-                            .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
-                            .collect();
-                        for (result, new_result) in result_pairs.iter() {
-                            // Clone the value_users for each newly-generated result using the maps
-                            // from the old results.
-                            self.value_users[*new_result] = self.value_users[*result].clone();
-
-                            let elab_value = ElaboratedValue {
-                                value: *new_result,
-                                in_block: insert_block,
-                            };
-                            let best_result = self.value_to_best_value[*result];
-                            self.value_to_elaborated_value
-                                .insert_if_absent(best_result.1, elab_value);
-
-                            // NOTE: Understand why this is correct...
-                            // Shouldn't `best_result` be `elab_value`?
-                            self.value_to_best_value[*new_result] = best_result;
-
-                            trace!(
-                                " -> cloned {} has new result {} for orig {}",
-                                new_inst,
-                                new_result,
-                                result
+                                " Adding result elab_value {} with best result {} to value_to_elab_value",
+                                result,
+                                best_result.1
                             );
-                        }
-                        new_inst
-                    } else {
-                        trace!(" -> no location; using original inst");
-                        // Create identity mappings from result values to themselves
-                        // in this scope, since we're using the original inst.
-                        for &result in self.func.dfg.inst_results(inst_to_insert) {
-                            let elab_value = ElaboratedValue {
-                                value: result,
-                                in_block: insert_block,
-                            };
-                            let best_result = self.value_to_best_value[result];
-                            self.value_to_elaborated_value
-                                .insert_if_absent(best_result.1, elab_value);
-                            trace!(" -> inserting identity mapping for {}", result);
-                        }
-                        inst_to_insert
-                    };
+
+                        // NOTE: Understand why this is correct...
+                        // Shouldn't `best_result` be `elab_value`?
+                        self.value_to_best_value[*new_result] = best_result;
+
+                        trace!(
+                            " -> cloned {} has new result {} for orig {}",
+                            new_inst,
+                            new_result,
+                            result
+                        );
+                    }
+                    new_inst
+                } else {
+                    trace!(" -> no location; using original inst");
+                    // Create identity mappings from result values to themselves
+                    // in this scope, since we're using the original inst.
+                    for &result in self.func.dfg.inst_results(inst_to_insert) {
+                        let elab_value = ElaboratedValue {
+                            value: result,
+                            in_block: insert_block,
+                        };
+                        let best_result = self.value_to_best_value[result];
+                        self.value_to_elaborated_value
+                            .insert_if_absent(best_result.1, elab_value);
+                        trace!(
+                                " Adding result elab_value {} with best result {} to value_to_elab_value",
+                                result,
+                                best_result.1
+                            );
+                        trace!(" -> inserting identity mapping for {}", result);
+                    }
+                    inst_to_insert
+                };
 
                 let elaborated_args: Vec<Value> = self
                     .func
@@ -745,23 +765,20 @@ impl<'a> Elaborator<'a> {
                         };
                         if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                             // FIXME: check if the dominates() call is correct or even necessary.
+                            // Should we check domtree.dominates here?
                             if let Some(elab_arg_block) = self.func.layout.inst_block(arg_inst) {
-                                if self.domtree.dominates(elab_arg_block, block) {
-                                    let elab_value = self
-                                        .value_to_elaborated_value
-                                        .get(&best_value)
-                                        .unwrap()
-                                        .value;
-                                    match self.func.dfg.value_def(elab_value) {
-                                        ValueDef::Union(..) => {
-                                            panic!("egraph union node found!");
-                                        }
-                                        _ => {}
-                                    };
-                                    elab_value
-                                } else {
-                                    best_value
-                                }
+                                let elab_value = self
+                                    .value_to_elaborated_value
+                                    .get(&best_value)
+                                    .unwrap()
+                                    .value;
+                                match self.func.dfg.value_def(elab_value) {
+                                    ValueDef::Union(..) => {
+                                        panic!("egraph union node found!");
+                                    }
+                                    _ => {}
+                                };
+                                elab_value
                             } else {
                                 best_value
                             }
@@ -815,6 +832,7 @@ impl<'a> Elaborator<'a> {
                             .loop_stack
                             .iter()
                             .position(|loop_entry| {
+                                trace!("Getting elab value from value {}", value);
                                 !self.loop_analysis.is_in_loop(
                                     self.value_to_elaborated_value.get(&value).unwrap().in_block,
                                     loop_entry.lp,
