@@ -764,9 +764,7 @@ impl<'a> Elaborator<'a> {
                             _ => {}
                         };
                         if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
-                            // FIXME: check if the dominates() call is correct or even necessary.
-                            // Should we check domtree.dominates here?
-                            if let Some(elab_arg_block) = self.func.layout.inst_block(arg_inst) {
+                            if let Some(_elab_arg_block) = self.func.layout.inst_block(arg_inst) {
                                 let elab_value = self
                                     .value_to_elaborated_value
                                     .get(&best_value)

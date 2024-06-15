@@ -35,7 +35,7 @@ pub struct OrderingInfo {
     // TODO: check if the u16 type is optimal
     critical_path: u16,
     // TODO: check if the u32 type is optimal
-    seq: u8,
+    seq: u32,
 }
 
 impl OrderingInfo {
@@ -43,7 +43,7 @@ impl OrderingInfo {
         OrderingInfo {
             last_use_count: u8::MIN,
             critical_path: u16::MIN,
-            seq: u8::MAX,
+            seq: u32::MAX,
         }
     }
 }
@@ -632,7 +632,7 @@ impl<'a> EgraphPass<'a> {
     fn empty_block_and_optimize(&mut self) {
         // Sequencer value for instructions — used to create the
         // `inst_sequence_map`.
-        let mut inst_seq: u8 = 0;
+        let mut inst_seq: u32 = 0;
 
         // This pass relies on every value having a unique name, so first
         // eliminate any value aliases.
