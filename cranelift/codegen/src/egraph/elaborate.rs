@@ -51,14 +51,10 @@ pub(crate) struct Elaborator<'a> {
     value_to_best_value: SecondaryMap<Value, BestEntry>,
     /// Stack of blocks and loops in current elaboration path.
     loop_stack: SmallVec<[LoopStackEntry; 8]>,
-    /// The current block into which we are elaborating.
-    _cur_block: Block,
     /// Values that opt rules have indicated should be rematerialized
     /// in every block they are used (e.g., immediates or other
     /// "cheap-to-compute" ops).
     remat_values: &'a FxHashSet<Value>,
-    /// Results from the elab stack.
-    _elab_result_stack: Vec<ElaboratedValue>,
     /// Explicitly-unrolled block elaboration stack.
     block_stack: Vec<BlockStackEntry>,
     /// Copies of values that have been rematerialized.
@@ -163,9 +159,7 @@ impl<'a> Elaborator<'a> {
             value_to_elaborated_value: ScopedHashMap::with_capacity(num_values),
             value_to_best_value,
             loop_stack: smallvec![],
-            _cur_block: Block::reserved_value(),
-            remat_values: remat_values,
-            _elab_result_stack: vec![],
+            remat_values,
             block_stack: vec![],
             remat_copies: FxHashMap::default(),
             inst_ordering_info_map,
@@ -178,7 +172,6 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    // NOTE: this is unecessary until we re-enable the LICM optimization
     fn start_block(&mut self, idom: Option<Block>, block: Block) {
         trace!(
             "start_block: block {:?} with idom {:?} at loop depth {:?} scope depth {}",
@@ -225,8 +218,6 @@ impl<'a> Elaborator<'a> {
         }
 
         trace!("block {}: loop stack is {:?}", block, self.loop_stack);
-
-        self._cur_block = block;
     }
 
     fn compute_best_values(&mut self) {
@@ -365,7 +356,6 @@ impl<'a> Elaborator<'a> {
         }
     }
 
-    // TODO: re-enable when everything else is functioning
     /// Possibly rematerialize the instruction producing the value in
     /// `arg` and rewrite `arg` to refer to it, if needed. Returns
     /// `true` if a rewrite occurred.
@@ -431,7 +421,7 @@ impl<'a> Elaborator<'a> {
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
-        // NOTE: this might be unecessary since it might always end up empty here.
+        // NOTE: check if this is unecessary... (possibly not?)
         SecondaryMap::clear(&mut self.value_users);
 
         // Iterate over all skeleton instructions to find true data dependencies.
@@ -471,7 +461,6 @@ impl<'a> Elaborator<'a> {
                 let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
                     SecondaryMap::with_default(false);
                 for arg in self.func.dfg.inst_values(inst) {
-                    // TODO: there probably exists a less expensive way to get unique args.
                     // Skip already visited arguments in case the instruction uses
                     // the same argument value multiple times. Basically, if we
                     // have `add x0, x1, x1` we don't want to add two dependencies
@@ -485,16 +474,15 @@ impl<'a> Elaborator<'a> {
 
                     let BestEntry(_, arg) = self.value_to_best_value[arg];
 
-                    // Add the instruction to the value_users map of its arguments.
+                    // Add the instruction to the value_users map of its arguments,
+                    // and also create identity mappings for blockparams in the
+                    // elaborated values' scoped map.
                     if !self.value_users[arg]
                         .iter()
                         .any(|&user_inst| user_inst == inst)
                     {
                         match self.func.dfg.value_def(arg) {
-                            ValueDef::Result(inst, _) => trace!("Arg {} comes from {}", arg, inst),
                             ValueDef::Param(block, _) => {
-                                trace!("Arg {} is a block param of {}", arg, block);
-                                // FIXME: consider using a different data structure.
                                 self.value_to_elaborated_value.insert_if_absent(
                                     arg,
                                     ElaboratedValue {
@@ -502,13 +490,8 @@ impl<'a> Elaborator<'a> {
                                         value: arg,
                                     },
                                 );
-                                trace!(
-                                " Adding result elab_value {} with key best result {} to value_to_elab_value",
-                                arg,
-                                arg,
-                            );
                             }
-                            ValueDef::Union(_, _) => trace!("Arg {} is a UNION NODE!!!!", arg),
+                            _ => {}
                         }
                         self.value_users[arg].insert(inst);
                     }
@@ -602,17 +585,6 @@ impl<'a> Elaborator<'a> {
             .opcode()
             .is_terminator());
 
-        // FIXME: only needed for debugging... ////////////////////////////////
-        let mut elaborated_instructions: SecondaryMap<Inst, bool> =
-            SecondaryMap::with_default(false);
-        let mut instruction_in_ready_queue: SecondaryMap<Inst, bool> =
-            SecondaryMap::with_default(false);
-        ///////////////////////////////////////////////////////////////////////
-
-        // NOTE: The ready queue can only be empty here if (and only if) the
-        // block ought to have just the block terminator inside it. Maybe
-        // formulate an analogous assertion.
-
         while let Some(original_inst) = self.ready_queue.pop() {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(original_inst != block_terminator);
@@ -639,11 +611,8 @@ impl<'a> Elaborator<'a> {
                 .all(|inst_result| self.value_to_elaborated_value.get(inst_result).is_some())
                 && is_pure_for_egraph(self.func, original_inst);
 
-            // TODO: In case it the instruction got optimized through LICM (got
+            // In case the instruction got optimized through LICM (got
             // hoisted out of a loop), change its layout placement accordingly.
-            //
-            // NOTE: Remove the `before` field from `inst_ordering_info_map`
-            // since we are now going to compute it eagerly inside here.
             let (before, insert_block) = (
                 block_terminator,
                 self.func.layout.inst_block(block_terminator).unwrap(),
@@ -655,18 +624,16 @@ impl<'a> Elaborator<'a> {
                 .into_iter()
                 .map(|arg| {
                     let best_value = self.value_to_best_value[arg].1;
-                    trace!(
-                        "Getting best value for inst {} with arg {} to best_arg {}",
-                        original_inst,
-                        arg,
-                        best_value
-                    );
                     let mut elab_arg = self
                         .value_to_elaborated_value
                         .get(&best_value)
                         .unwrap()
                         .clone();
 
+                    // =================== rematerialization ===================
+                    // Check if the pure instructions have only 1 result or more.
+                    // After remat update all the user args of that arg that just
+                    // rematerialized.
                     if Self::maybe_remat_arg(
                         &self.remat_values,
                         &mut self.func,
@@ -679,55 +646,22 @@ impl<'a> Elaborator<'a> {
                         remat_arg = true;
                         self.value_to_elaborated_value
                             .insert_if_absent(best_value, elab_arg);
-                        trace!(
-                                " Adding result elab_value {} with key best result {} to value_to_elab_value",
-                                elab_arg.value,
-                                best_value
-                            );
                     };
 
-                    trace!(
-                        "After remat original arg is {},  best value {} and remat arg is {} ",
-                        arg,
-                        best_value,
-                        elab_arg.value,
-                    );
                     elab_arg
                 })
                 .collect();
 
-            // TODO: Now that we have the location for the instruction, check
-            // if any of its args are remat values. If so, and if we don't have
-            // a copy of the rematerializing instruction for this block yet,
-            // create one.
-            //
-            // TODO: =========== rematerialization ===================
-            // Check if the pure instructions have only 1 result or more.
-            // After remat update all the user args of that arg that just
-            // rematerialized.
-            // And update the value_users map. Inserting a Map Entry for the
-            // generated value along with the users of that value.
-            // For the newly generated instruction we don't decremenent dependency
-            // count of other instructions that are the results of the users of the results
+            // The instruction is either going to be inserted to the layout
+            // or it was redundant_inst, because all the results were already
+            // present, or at least one of its arguments was rematerialized.
+            let mut inserted_inst = original_inst;
 
             // Now we need to place `inst` at the computed location (just
             // before `before`). Note that `inst` may already have been
             // placed somewhere else, because a pure node may be elaborated
             // at more than one place. In this case, we need to duplicate the
             // instruction.
-            //
-            // NOTE: We must see if this duplication will necesitate changes in
-            // the `value_users` map, the ordering information, the
-            // `dependencies_count` map etc. It is possible that this
-            // duplication might move in the `compute_ddg_and_value_users` pass!
-            trace!("Trying to insert {} before {}", original_inst, before);
-            trace!("{} redudant =: {}", original_inst, redundant_inst);
-
-            // The instruction is either inserted to the layout or it was redundant_inst,
-            // because all the results were already present, or at least one of its arguments
-            // was rematerialized.
-            let mut inserted_inst = original_inst;
-
             if !redundant_inst {
                 // Clone if we rematerialized, because we don't want
                 // to rewrite the args in the original copy.
@@ -753,6 +687,7 @@ impl<'a> Elaborator<'a> {
                         .cloned()
                         .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
                         .collect();
+
                     for (result, new_result) in result_pairs.iter() {
                         // Clone the value_users for each newly-generated result using the maps
                         // from the old results.
@@ -765,12 +700,6 @@ impl<'a> Elaborator<'a> {
                         let best_result = self.value_to_best_value[*result];
                         self.value_to_elaborated_value
                             .insert_if_absent(best_result.1, elab_value);
-
-                        trace!(
-                                " Adding result elab_value {} with key best result {} to value_to_elab_value",
-                                result,
-                                best_result.1
-                            );
 
                         // NOTE: Understand why this is correct...
                         // Shouldn't `best_result` be `elab_value`?
@@ -786,6 +715,7 @@ impl<'a> Elaborator<'a> {
                     new_inst
                 } else {
                     trace!(" -> no location; using original inst");
+
                     // Create identity mappings from result values to themselves
                     // in this scope, since we're using the original inst.
                     for &result in self.func.dfg.inst_results(original_inst) {
@@ -796,22 +726,9 @@ impl<'a> Elaborator<'a> {
                         let best_result = self.value_to_best_value[result];
                         self.value_to_elaborated_value
                             .insert_if_absent(best_result.1, elab_value);
-                        trace!(
-                                " Adding result elab_value {} with key best result {} to value_to_elab_value",
-                                result,
-                                best_result.1
-                            );
-                        trace!(" -> inserting identity mapping for {}", result);
                     }
                     original_inst
                 };
-
-                // FIXME: only for debugging //////////////////////////////////
-                assert!(
-                    elaborated_instructions[original_inst] == false,
-                    "We already inserted this instruction in this block through the ready queue!",
-                );
-                ///////////////////////////////////////////////////////////////
 
                 // Compute max loop depth.
                 //
@@ -855,6 +772,7 @@ impl<'a> Elaborator<'a> {
                     })
                     .max()
                     .unwrap_or(self.loop_stack.len().saturating_sub(1));
+
                 trace!(
                     " -> loop hoist level: {:?}; cur loop depth: {:?}, loop_stack: {:?}",
                     loop_hoist_level,
@@ -899,10 +817,7 @@ impl<'a> Elaborator<'a> {
                 trace!("Overwriting args for inst {}", inserted_inst);
                 self.func.dfg.overwrite_inst_values(
                     inserted_inst,
-                    elaborated_args.into_iter().map(|elab_val| {
-                        trace!("With arg {}", elab_val.value);
-                        elab_val.value
-                    }),
+                    elaborated_args.into_iter().map(|elab_val| elab_val.value),
                 );
 
                 // Insert the instruction to the layout.
@@ -911,16 +826,9 @@ impl<'a> Elaborator<'a> {
                     .insert_inst(inserted_inst, block_terminator);
             };
 
-            // FIXME: only needed for debugging... ////////////////////////////
-            elaborated_instructions[inserted_inst] = true;
-            ///////////////////////////////////////////////////////////////////
-
             // Update the LUC (last-use-counts) of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
-                // TODO: an alternative for better optimization is to just add one bit for deleted
-                // and maybe do the deletion afterwards if it is necessary. This improve
-                // performance.
                 self.value_users[arg].remove(&inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
@@ -941,16 +849,7 @@ impl<'a> Elaborator<'a> {
             // block terminator), put it in the ready queue too, indicating that
             // a skeleton instruction has just been inserted in it, using
             // `skeleton_already_pushed`.
-            self.skeleton_inst_order.iter().for_each(|inst| {
-                trace!("------------- Iterating over skeleton {}", inst);
-            });
-            trace!("Inserted inst is {}", inserted_inst);
             if self.skeleton_inst_order.front() == Some(&original_inst) {
-                trace!(
-                    "Skeleton inst order front is {}",
-                    self.skeleton_inst_order.front().unwrap()
-                );
-                trace!("Inserted inst is {}", inserted_inst);
                 self.skeleton_inst_order.pop_front();
                 if let Some(next_skeleton_inst) = self.skeleton_inst_order.front() {
                     let next_skeleton_inst = next_skeleton_inst.clone();
@@ -969,15 +868,7 @@ impl<'a> Elaborator<'a> {
                             next_skeleton_inst,
                             self.inst_ordering_info_map[next_skeleton_inst],
                         );
-                        assert!(
-                            !elaborated_instructions[next_skeleton_inst],
-                            "We already inserted this skeleton instruction in this block through the ready queue!",
-                        );
                         skeleton_already_inserted = true;
-                        // FIXME: only needed for debugging... ////////////////
-                        assert!(!instruction_in_ready_queue[next_skeleton_inst]);
-                        instruction_in_ready_queue[next_skeleton_inst] = true;
-                        ///////////////////////////////////////////////////////
                     }
                 }
             }
@@ -1011,43 +902,12 @@ impl<'a> Elaborator<'a> {
                             trace!("Inserting pure {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
-
-                            // FIXME: only needed for debugging... ////////
-                            assert!(
-                                !elaborated_instructions[user_inst],
-                                "We already inserted this skeleton instruction in this block through the ready queue!",
-                            );
-                            assert!(
-                                user_inst != inserted_inst,
-                                "We have already inserted {} to the layout!",
-                                user_inst
-                            );
-                            assert!(!instruction_in_ready_queue[user_inst]);
-                            instruction_in_ready_queue[user_inst] = true;
-                            ///////////////////////////////////////////////
                         } else if !skeleton_already_inserted
                             && Some(&user_inst) == self.skeleton_inst_order.front()
                         {
                             trace!("Inserting skeleton {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
-
-                            // FIXME: only needed for debugging... ////////
-                            assert!(
-                                !elaborated_instructions[user_inst],
-                                "We already inserted this skeleton instruction in this block through the ready queue!",
-                            );
-                            assert!(!instruction_in_ready_queue[user_inst]);
-                            instruction_in_ready_queue[user_inst] = true;
-                            ///////////////////////////////////////////////
-                        } else {
-                            trace!("While it has 0 dependencies, {} will not get put to the ready queue...", user_inst);
-                            if skeleton_already_inserted {
-                                trace!("That's because this skeleton has already been inserted.");
-                            } else {
-                                trace!("That's probably because this skeleton comes from an already-elaborated block.");
-                                assert_ne!(self.func.layout.inst_block(user_inst), Some(block));
-                            }
                         }
                     }
                 }
@@ -1061,7 +921,6 @@ impl<'a> Elaborator<'a> {
             .inst_values(block_terminator)
             .map(|arg| {
                 let best_value = self.value_to_best_value[arg].1;
-                trace!("Getting elab arg {} from best value {} ", arg, best_value);
                 self.value_to_elaborated_value
                     .get(&best_value)
                     .unwrap()
@@ -1078,17 +937,6 @@ impl<'a> Elaborator<'a> {
         for arg in self.func.dfg.inst_values(block_terminator) {
             self.value_users[arg].remove(&block_terminator);
         }
-
-        // FIXME: only needed for debugging... ////////////////////////////////
-        self.func
-            .dfg
-            .inst_args(block_terminator)
-            .iter()
-            .for_each(|&arg| match self.func.dfg.value_def(arg) {
-                ValueDef::Union(..) => panic!("Terminator has union param"),
-                _ => {}
-            });
-        ///////////////////////////////////////////////////////////////////////
     }
 
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
@@ -1104,7 +952,6 @@ impl<'a> Elaborator<'a> {
                     self.value_to_elaborated_value.increment_depth();
 
                     self.compute_ddg_and_value_users(idom, block);
-                    // TODO: We might have to reset ordering info for every block.
                     self.schedule_insts(block);
 
                     // Push children. We are doing a preorder
