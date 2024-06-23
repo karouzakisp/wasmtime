@@ -165,7 +165,7 @@ impl<'a> Elaborator<'a> {
             inst_ordering_info_map,
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
-            value_users: SecondaryMap::with_capacity(128),
+            value_users: SecondaryMap::with_capacity(4096),
             ready_queue: RankPairingHeap::single_pass_max(),
             stats,
             ctrl_plane,
@@ -419,6 +419,7 @@ impl<'a> Elaborator<'a> {
 
         // A map used to skip skeleton instructions that we have already visited.
         let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
+        inst_already_visited.resize(4096);
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
         // NOTE: check if this is unecessary... (possibly not?)
@@ -460,6 +461,7 @@ impl<'a> Elaborator<'a> {
                 // the same value in multiple arguments.
                 let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
                     SecondaryMap::with_default(false);
+                inst_arg_already_visited.resize(10);
                 for arg in self.func.dfg.inst_values(inst) {
                     // Skip already visited arguments in case the instruction uses
                     // the same argument value multiple times. Basically, if we
@@ -619,38 +621,39 @@ impl<'a> Elaborator<'a> {
             );
 
             let mut remat_arg = false;
-            let args: Vec<Value> = self.func.dfg.inst_values(original_inst).collect();
-            let elaborated_args: Vec<ElaboratedValue> = args
-                .into_iter()
-                .map(|arg| {
-                    let best_value = self.value_to_best_value[arg].1;
-                    let mut elab_arg = self
-                        .value_to_elaborated_value
-                        .get(&best_value)
-                        .unwrap()
-                        .clone();
+            let mut elaborated_args = Vec::new();
+            let mut remat_args: Vec<(Value, ElaboratedValue)> = Vec::new();
+            for arg in self.func.dfg.inst_values(original_inst) {
+                let best_value = self.value_to_best_value[arg].1;
+                let elab_arg = self
+                    .value_to_elaborated_value
+                    .get(&best_value)
+                    .unwrap()
+                    .clone();
 
-                    // =================== rematerialization ===================
-                    // Check if the pure instructions have only 1 result or more.
-                    // After remat update all the user args of that arg that just
-                    // rematerialized.
-                    if Self::maybe_remat_arg(
-                        &self.remat_values,
-                        &mut self.func,
-                        &mut self.remat_copies,
-                        insert_block,
-                        before,
-                        &mut elab_arg,
-                        &mut self.stats,
-                    ) {
-                        remat_arg = true;
-                        self.value_to_elaborated_value
-                            .insert_if_absent(best_value, elab_arg);
-                    };
+                // =================== rematerialization ===================
+                // Check if the pure instructions have only 1 result or more.
+                // After remat update all the user args of that arg that just
+                // rematerialized.
+                remat_args.push((best_value, elab_arg.clone()));
+                elaborated_args.push(elab_arg);
+            }
 
-                    elab_arg
-                })
-                .collect();
+            for (best_value, mut elab_arg) in remat_args {
+                if Self::maybe_remat_arg(
+                    &self.remat_values,
+                    &mut self.func,
+                    &mut self.remat_copies,
+                    insert_block,
+                    before,
+                    &mut elab_arg,
+                    &mut self.stats,
+                ) {
+                    remat_arg = true;
+                    self.value_to_elaborated_value
+                        .insert_if_absent(best_value, elab_arg);
+                };
+            }
 
             // The instruction is either going to be inserted to the layout
             // or it was redundant_inst, because all the results were already
@@ -881,6 +884,10 @@ impl<'a> Elaborator<'a> {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
+                    // check if user_inst is already inserted to the ready queue
+                    if self.dependencies_count[user_inst] == 0 {
+                        continue;
+                    }
                     trace!(
                         "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
                         result,
