@@ -31,7 +31,7 @@ mod elaborate;
 
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
-    last_use_count: u8,
+    last_use_count: u16,
     // TODO: check if the u16 type is optimal
     critical_path: u16,
     // TODO: check if the u32 type is optimal
@@ -41,7 +41,7 @@ pub struct OrderingInfo {
 impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
-            last_use_count: u8::MIN,
+            last_use_count: u16::MIN,
             critical_path: u16::MIN,
             seq: u32::MAX,
         }
@@ -777,7 +777,7 @@ impl<'a> EgraphPass<'a> {
                             trace!("-------egraph.rs : Removing {}", inst);
                             cursor.remove_inst_and_step_back();
                             self.inst_ordering_info_map[inst] = OrderingInfo {
-                                last_use_count: u8::MIN,
+                                last_use_count: u16::MIN,
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
                             };
@@ -788,7 +788,7 @@ impl<'a> EgraphPass<'a> {
                                 cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
-                                    last_use_count: u8::MIN,
+                                    last_use_count: u16::MIN,
                                     critical_path: u16::MIN,
                                     seq: inst_seq,
                                 };
