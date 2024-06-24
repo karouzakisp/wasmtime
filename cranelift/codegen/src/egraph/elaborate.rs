@@ -165,6 +165,7 @@ impl<'a> Elaborator<'a> {
             inst_ordering_info_map,
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
+            // TODO: check if 4096 is a good value...
             value_users: SecondaryMap::with_capacity(4096),
             ready_queue: RankPairingHeap::single_pass_max(),
             stats,
@@ -698,7 +699,7 @@ impl<'a> Elaborator<'a> {
                     for (result, new_result) in result_pairs.iter() {
                         // Clone the value_users for each newly-generated result using the maps
                         // from the old results.
-                        self.value_users[*new_result] = self.value_users[*result].clone();
+                        self.value_users[*new_result] = self.value_users[*result].drain().collect();
 
                         let elab_value = ElaboratedValue {
                             value: *new_result,
@@ -836,7 +837,9 @@ impl<'a> Elaborator<'a> {
             // Update the LUC (last-use-counts) of instructions.
             for arg in self.func.dfg.inst_values(inserted_inst) {
                 // Remove the instruction from the argument value's users.
-                self.value_users[arg].remove(&inserted_inst);
+                // FIXME: Dimitris — I believe this assertion might be an invariant!
+                // I changed it to `original_inst`, but the assertion still panics.
+                assert!(self.value_users[arg].remove(&original_inst));
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[arg].len() == 1 {
@@ -888,10 +891,6 @@ impl<'a> Elaborator<'a> {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
-                    // check if user_inst is already inserted to the ready queue
-                    if self.dependencies_count[user_inst] == 0 {
-                        continue;
-                    }
                     trace!(
                         "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
                         result,
