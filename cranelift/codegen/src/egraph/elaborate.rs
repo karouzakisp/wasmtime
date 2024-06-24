@@ -418,8 +418,7 @@ impl<'a> Elaborator<'a> {
         self.skeleton_inst_order.drain(..);
 
         // A map used to skip skeleton instructions that we have already visited.
-        let mut inst_already_visited: SecondaryMap<Inst, bool> = SecondaryMap::with_default(false);
-        inst_already_visited.resize(4096);
+        let mut inst_already_visited: FxHashSet<Inst> = FxHashSet::default();
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
         // NOTE: check if this is unecessary... (possibly not?)
@@ -450,29 +449,27 @@ impl<'a> Elaborator<'a> {
             while let Some(inst) = next_inst {
                 trace!("Inner loop, iterating over {}", inst);
 
-                if inst_already_visited[inst] {
+                if inst_already_visited.contains(&inst) {
                     trace!("Instruction {} has already been visited, skip it!", inst);
                     next_inst = inst_queue.pop_front();
                     continue;
                 }
-                inst_already_visited[inst] = true;
+                inst_already_visited.insert(inst);
 
                 // A map to filter out duplicate visits in case an instruction uses
                 // the same value in multiple arguments.
-                let mut inst_arg_already_visited: SecondaryMap<Value, bool> =
-                    SecondaryMap::with_default(false);
-                inst_arg_already_visited.resize(10);
+                let mut inst_arg_already_visited: FxHashSet<Value> = FxHashSet::default();
                 for arg in self.func.dfg.inst_values(inst) {
                     // Skip already visited arguments in case the instruction uses
                     // the same argument value multiple times. Basically, if we
                     // have `add x0, x1, x1` we don't want to add two dependencies
                     // in the instruction because of `x1`.
                     trace!("Arg iteration for {}, with arg {}", inst, arg);
-                    if inst_arg_already_visited[arg] {
+                    if inst_arg_already_visited.contains(&arg) {
                         trace!("We visited already this arg: {}", arg);
                         continue;
                     }
-                    inst_arg_already_visited[arg] = true;
+                    inst_arg_already_visited.insert(arg);
 
                     let BestEntry(_, arg) = self.value_to_best_value[arg];
 
