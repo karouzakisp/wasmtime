@@ -588,13 +588,20 @@ impl<'a> Elaborator<'a> {
             .is_terminator());
 
         while let Some(original_inst) = self.ready_queue.pop() {
-            // FIXME: only needed for debugging... ////////////////////////////
+            // TODO: check if there is an implementation invariant that states
+            // that each instruction that gets discovered through the ddg pass
+            // will end up here as an `original_inst`.
+
             assert!(original_inst != block_terminator);
-            ///////////////////////////////////////////////////////////////////
             trace!(
                 "  _____ New ready-queue instruction: {} _____",
                 original_inst
             );
+
+            // Clear the CP and LUC ordering info fields of the instruction
+            // for possible use in subsequent blocks.
+            self.inst_ordering_info_map[original_inst].last_use_count = 0;
+            self.inst_ordering_info_map[original_inst].critical_path = 0;
 
             // If all results of the to-be-inserted instruction have already
             // been created through instruction elaborations, we can reuse them,
