@@ -1,0 +1,8 @@
+1) Line:498 self.value_users[arg].insert() costs too much
+2) inst_arg_already_visited too expensive change data structure
+3) heapz check allocators
+4) clones are little costly
+5) line:620 all(value.to_elab.get()) little costly;
+6) line:704 clone value users? maybe think a faster way
+7) value users remove costly, look hashset details
+8)
