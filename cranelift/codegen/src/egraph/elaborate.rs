@@ -12,6 +12,7 @@ use crate::ir::{Block, Function, Inst, Value, ValueDef};
 use crate::loop_analysis::{Loop, LoopAnalysis};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::trace;
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
@@ -423,7 +424,7 @@ impl<'a> Elaborator<'a> {
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
         // NOTE: check if this is unecessary... (possibly not?)
-        SecondaryMap::clear(&mut self.value_users);
+        //SecondaryMap::clear(&mut self.value_users);
 
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
@@ -645,6 +646,7 @@ impl<'a> Elaborator<'a> {
             }
 
             for (best_value, mut elab_arg) in remat_args {
+                let old_elab_arg = elab_arg;
                 if Self::maybe_remat_arg(
                     &self.remat_values,
                     &mut self.func,
@@ -657,6 +659,10 @@ impl<'a> Elaborator<'a> {
                     remat_arg = true;
                     self.value_to_elaborated_value
                         .insert_if_absent(best_value, elab_arg);
+                    // FIXME: 
+                    // find the old_elab_arg and update it with the newly elab_arg 
+                    // this needs to be done in order to ensure that the elaborated args 
+                    // are corrected. 
                 };
             }
 
@@ -699,7 +705,7 @@ impl<'a> Elaborator<'a> {
                     for (result, new_result) in result_pairs.iter() {
                         // Clone the value_users for each newly-generated result using the maps
                         // from the old results.
-                        self.value_users[*new_result] = self.value_users[*result].drain().collect();
+                        self.value_users[*new_result] = self.value_users[*result].;
 
                         let elab_value = ElaboratedValue {
                             value: *new_result,
@@ -823,6 +829,11 @@ impl<'a> Elaborator<'a> {
                 );
 
                 trace!("Overwriting args for inst {}", inserted_inst);
+                // FIXME: now we change the instruction values args and results?(not sure about
+                // results)
+                // but then we iterate the newly args and remove them from the value_users map.
+                // Some args were not there before. 
+                // Because compute_ddg didn't had the elaborated args. 
                 self.func.dfg.overwrite_inst_values(
                     inserted_inst,
                     elaborated_args.into_iter().map(|elab_val| elab_val.value),
@@ -839,7 +850,7 @@ impl<'a> Elaborator<'a> {
                 // Remove the instruction from the argument value's users.
                 // FIXME: Dimitris — I believe this assertion might be an invariant!
                 // I changed it to `original_inst`, but the assertion still panics.
-                assert!(self.value_users[arg].remove(&original_inst));
+                assert_eq!(self.value_users[arg].remove(&original_inst), true);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[arg].len() == 1 {
@@ -960,7 +971,7 @@ impl<'a> Elaborator<'a> {
                 BlockStackEntry::Elaborate { block, idom } => {
                     self.block_stack.push(BlockStackEntry::Pop);
                     self.value_to_elaborated_value.increment_depth();
-
+                        
                     self.compute_ddg_and_value_users(idom, block);
                     self.schedule_insts(block);
 
