@@ -457,20 +457,14 @@ impl<'a> Elaborator<'a> {
                 }
                 inst_already_visited.insert(inst);
 
-                // A map to filter out duplicate visits in case an instruction uses
-                // the same value in multiple arguments.
-                let mut inst_arg_already_visited: FxHashSet<Value> = FxHashSet::default();
-                for value in self.func.dfg.inst_values(inst) {
-                    // Skip already visited arguments in case the instruction uses
-                    // the same argument value multiple times. Basically, if we
-                    // have `add x0, x1, x1` we don't want to add two dependencies
-                    // in the instruction because of `x1`.
+                // Skip already visited arguments in case the instruction uses
+                // the same argument value multiple times. Basically, if we
+                // have `add x0, x1, x1` we don't want to add two dependencies
+                // in the instruction because of `x1`.
+                let unique_values: FxHashSet<Value> =
+                    self.func.dfg.inst_values(inst).into_iter().collect();
+                for value in unique_values {
                     trace!("Arg iteration for {}, with arg {}", inst, value);
-                    if inst_arg_already_visited.contains(&value) {
-                        trace!("We visited already this arg: {}", value);
-                        continue;
-                    }
-                    inst_arg_already_visited.insert(value);
 
                     let BestEntry(_, value) = self.value_to_best_value[value];
 
@@ -837,11 +831,10 @@ impl<'a> Elaborator<'a> {
             };
 
             // Update the LUC (last-use-counts) of instructions.
-            for value in original_values {
+            let unique_original_values: FxHashSet<Value> = original_values.into_iter().collect();
+            for value in unique_original_values {
                 // Remove the instruction from the argument value's users.
-                // FIXME: Dimitris — I believe a successful removal might be an invariant!
-                // I changed it to `original_inst`, but the assertion still panics.
-                self.value_users[value].remove(&original_inst);
+                debug_assert!(self.value_users[value].remove(&original_inst));
 
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
