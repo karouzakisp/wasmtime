@@ -422,7 +422,7 @@ impl<'a> Elaborator<'a> {
         let mut inst_already_visited: FxHashSet<Inst> = FxHashSet::default();
 
         // Clear the `value_users` map. We need to reconstruct it for the current block.
-        // NOTE: check if this is unecessary... (possibly not?)
+        // TODO: check if this is unecessary... (possibly not?)
         SecondaryMap::clear(&mut self.value_users);
 
         // Iterate over all skeleton instructions to find true data dependencies.
@@ -460,47 +460,47 @@ impl<'a> Elaborator<'a> {
                 // A map to filter out duplicate visits in case an instruction uses
                 // the same value in multiple arguments.
                 let mut inst_arg_already_visited: FxHashSet<Value> = FxHashSet::default();
-                for arg in self.func.dfg.inst_values(inst) {
+                for value in self.func.dfg.inst_values(inst) {
                     // Skip already visited arguments in case the instruction uses
                     // the same argument value multiple times. Basically, if we
                     // have `add x0, x1, x1` we don't want to add two dependencies
                     // in the instruction because of `x1`.
-                    trace!("Arg iteration for {}, with arg {}", inst, arg);
-                    if inst_arg_already_visited.contains(&arg) {
-                        trace!("We visited already this arg: {}", arg);
+                    trace!("Arg iteration for {}, with arg {}", inst, value);
+                    if inst_arg_already_visited.contains(&value) {
+                        trace!("We visited already this arg: {}", value);
                         continue;
                     }
-                    inst_arg_already_visited.insert(arg);
+                    inst_arg_already_visited.insert(value);
 
-                    let BestEntry(_, arg) = self.value_to_best_value[arg];
+                    let BestEntry(_, value) = self.value_to_best_value[value];
 
                     // Add the instruction to the value_users map of its arguments,
                     // and also create identity mappings for blockparams in the
                     // elaborated values' scoped map.
-                    if !self.value_users[arg]
+                    if !self.value_users[value]
                         .iter()
                         .any(|&user_inst| user_inst == inst)
                     {
-                        match self.func.dfg.value_def(arg) {
+                        match self.func.dfg.value_def(value) {
                             ValueDef::Param(block, _) => {
                                 self.value_to_elaborated_value.insert_if_absent(
-                                    arg,
+                                    value,
                                     ElaboratedValue {
                                         in_block: block,
-                                        value: arg,
+                                        value,
                                     },
                                 );
                             }
                             _ => {}
                         }
-                        self.value_users[arg].insert(inst);
+                        self.value_users[value].insert(inst);
                     }
 
                     // Make sure that the argument comes from an instruction result.
                     // NOTE: Should we check the block of the instruction here?
-                    if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
+                    if let Some(arg_inst) = self.func.dfg.value_def(value).inst() {
                         // Check if we have the argument already elaborated.
-                        if self.value_to_elaborated_value.get(&arg).is_none() {
+                        if self.value_to_elaborated_value.get(&value).is_none() {
                             // Calculate the critical path for each instruction.
                             let prev_critical_path =
                                 self.inst_ordering_info_map[arg_inst].critical_path;
@@ -517,7 +517,7 @@ impl<'a> Elaborator<'a> {
                             trace!(
                                 "Add one dependency to {} due to arg {}: {} -> {}",
                                 inst,
-                                arg,
+                                value,
                                 self.dependencies_count[inst] - 1,
                                 self.dependencies_count[inst],
                             );
@@ -610,29 +610,27 @@ impl<'a> Elaborator<'a> {
             // have to decrement dependency counts for its results' users. We
             // also have to remove each result value from the value_users maps of
             // its results' users, and possibly change LUC fields accordingly.
-            let redundant_inst = self
-                .func
-                .dfg
-                .inst_results(original_inst)
-                .iter()
-                .all(|inst_result| self.value_to_elaborated_value.get(inst_result).is_some())
-                && is_pure_for_egraph(self.func, original_inst);
-
-            // In case the instruction got optimized through LICM (got
-            // hoisted out of a loop), change its layout placement accordingly.
-            let (before, insert_block) = (
-                block_terminator,
-                self.func.layout.inst_block(block_terminator).unwrap(),
-            );
+            let redundant_inst =
+                self.func
+                    .dfg
+                    .inst_results(original_inst)
+                    .iter()
+                    .all(|inst_result| {
+                        self.value_to_elaborated_value
+                            .get(&self.value_to_best_value[*inst_result].1)
+                            .is_some()
+                    })
+                    && is_pure_for_egraph(self.func, original_inst);
 
             let mut remat_arg = false;
-            let mut elaborated_args = Vec::new();
-            let mut remat_args: Vec<(Value, ElaboratedValue)> = Vec::new();
-            for arg in self.func.dfg.inst_values(original_inst) {
-                let best_value = self.value_to_best_value[arg].1;
-                let elab_arg = self
+            let original_values: Vec<Value> = self.func.dfg.inst_values(original_inst).collect();
+            let mut elaborated_values: Vec<ElaboratedValue> =
+                Vec::with_capacity(original_values.len());
+            for arg in original_values.iter() {
+                let best_value = self.value_to_best_value[*arg];
+                let mut elab_arg = self
                     .value_to_elaborated_value
-                    .get(&best_value)
+                    .get(&best_value.1)
                     .unwrap()
                     .clone();
 
@@ -640,30 +638,27 @@ impl<'a> Elaborator<'a> {
                 // Check if the pure instructions have only 1 result or more.
                 // After remat update all the user args of that arg that just
                 // rematerialized.
-                remat_args.push((best_value, elab_arg.clone()));
-                elaborated_args.push(elab_arg);
-            }
-
-            for (best_value, mut elab_arg) in remat_args {
                 if Self::maybe_remat_arg(
                     &self.remat_values,
                     &mut self.func,
                     &mut self.remat_copies,
-                    insert_block,
-                    before,
+                    block,
+                    block_terminator,
                     &mut elab_arg,
                     &mut self.stats,
                 ) {
                     remat_arg = true;
+                    self.value_to_best_value[elab_arg.value] = best_value;
                     self.value_to_elaborated_value
-                        .insert_if_absent(best_value, elab_arg);
+                        .insert_if_absent(best_value.1, elab_arg);
                 };
+                elaborated_values.push(elab_arg);
             }
 
             // The instruction is either going to be inserted to the layout
             // or it was redundant_inst, because all the results were already
             // present, or at least one of its arguments was rematerialized.
-            let mut inserted_inst = original_inst;
+            let mut inst_to_insert = original_inst;
 
             // Now we need to place `inst` at the computed location (just
             // before `before`). Note that `inst` may already have been
@@ -673,70 +668,81 @@ impl<'a> Elaborator<'a> {
             if !redundant_inst {
                 // Clone if we rematerialized, because we don't want
                 // to rewrite the args in the original copy.
-                inserted_inst = if self.func.layout.inst_block(original_inst).is_some() || remat_arg
-                {
-                    // Clone the instruction.
-                    let new_inst = self.func.dfg.clone_inst(original_inst);
-
-                    trace!(
-                        " -> inst {} already has a location; cloned to {}",
-                        original_inst,
-                        new_inst
-                    );
-
-                    // Create mappings in the value-to-elab'd-value map from
-                    // original results to cloned results, and generate the
-                    // necessary value_users maps.
-                    let result_pairs: Vec<(Value, Value)> = self
-                        .func
-                        .dfg
-                        .inst_results(original_inst)
-                        .iter()
-                        .cloned()
-                        .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
-                        .collect();
-
-                    for (result, new_result) in result_pairs.iter() {
-                        // Clone the value_users for each newly-generated result using the maps
-                        // from the old results.
-                        self.value_users[*new_result] = self.value_users[*result].drain().collect();
-
-                        let elab_value = ElaboratedValue {
-                            value: *new_result,
-                            in_block: insert_block,
-                        };
-                        let best_result = self.value_to_best_value[*result];
-                        self.value_to_elaborated_value
-                            .insert_if_absent(best_result.1, elab_value);
-
-                        // NOTE: Understand why this is correct...
-                        // Shouldn't `best_result` be `elab_value`?
-                        self.value_to_best_value[*new_result] = best_result;
+                // NOTE: why does the above hold?
+                inst_to_insert =
+                    if self.func.layout.inst_block(original_inst).is_some() || remat_arg {
+                        // Clone the instruction.
+                        let new_inst = self.func.dfg.clone_inst(original_inst);
 
                         trace!(
-                            " -> cloned {} has new result {} for orig {}",
-                            new_inst,
-                            new_result,
-                            result
+                            " -> inst {} already has a location; cloned to {}",
+                            original_inst,
+                            new_inst
                         );
-                    }
-                    new_inst
-                } else {
-                    trace!(" -> no location; using original inst");
 
-                    // Create identity mappings from result values to themselves
-                    // in this scope, since we're using the original inst.
-                    for &result in self.func.dfg.inst_results(original_inst) {
-                        let elab_value = ElaboratedValue {
-                            value: result,
-                            in_block: insert_block,
-                        };
-                        let best_result = self.value_to_best_value[result];
-                        self.value_to_elaborated_value
-                            .insert_if_absent(best_result.1, elab_value);
-                    }
-                    original_inst
-                };
+                        // Create mappings in the value-to-elab'd-value map from
+                        // original results to cloned results, and generate the
+                        // necessary value_users maps.
+                        let result_pairs: Vec<(Value, Value)> = self
+                            .func
+                            .dfg
+                            .inst_results(original_inst)
+                            .iter()
+                            .cloned()
+                            .zip(self.func.dfg.inst_results(new_inst).iter().cloned())
+                            .collect();
+
+                        for (result, new_result) in result_pairs.iter() {
+                            // Clone the value_users for each newly-generated result
+                            // using the maps from the old results.
+                            // TODO: maybe we never need to index `value_users` with
+                            // the new results.
+                            // self.value_users[*new_result] = self.value_users[*result].drain().collect();
+
+                            let best_result = self.value_to_best_value[*result];
+                            // NOTE: Possibly unecessary if we always index this
+                            // with ddg-discovered values.
+                            self.value_to_best_value[*new_result] = best_result;
+
+                            let elab_value = ElaboratedValue {
+                                value: *new_result,
+                                in_block: block,
+                            };
+                            self.value_to_elaborated_value
+                                .insert_if_absent(best_result.1, elab_value);
+
+                            trace!(
+                                " -> cloned {} has new result {} for orig {}",
+                                new_inst,
+                                new_result,
+                                result
+                            );
+                        }
+                        new_inst
+                    } else {
+                        trace!(" -> no location; using original inst");
+
+                        // Create identity mappings from result values to themselves
+                        // in this scope, since we're using the original inst.
+                        for &result in self.func.dfg.inst_results(original_inst) {
+                            let best_result = self.value_to_best_value[result];
+                            let elab_value = ElaboratedValue {
+                                value: result,
+                                in_block: block,
+                            };
+                            self.value_to_elaborated_value
+                                .insert_if_absent(best_result.1, elab_value);
+                        }
+                        original_inst
+                    };
+
+                // Overwrite the to-be-inserted instruction's values with their
+                // elaborated versions.
+                trace!("Overwriting args for inst {}", inst_to_insert);
+                self.func.dfg.overwrite_inst_values(
+                    inst_to_insert,
+                    elaborated_values.into_iter().map(|elab_val| elab_val.value),
+                );
 
                 // Compute max loop depth.
                 //
@@ -753,9 +759,11 @@ impl<'a> Elaborator<'a> {
                 let loop_hoist_level = self
                     .func
                     .dfg
-                    .inst_values(inserted_inst)
+                    .inst_values(inst_to_insert)
                     .map(|value| {
-                        let value = self.value_to_best_value[value].1;
+                        let best_value = self.value_to_best_value[value].1;
+                        let elab_value = self.value_to_elaborated_value.get(&best_value).unwrap();
+
                         // Find the outermost loop level at which
                         // the value's defining block *is not* a
                         // member. This is the loop-nest level
@@ -764,16 +772,15 @@ impl<'a> Elaborator<'a> {
                             .loop_stack
                             .iter()
                             .position(|loop_entry| {
-                                trace!("Getting elab value from value {}", value);
-                                !self.loop_analysis.is_in_loop(
-                                    self.value_to_elaborated_value.get(&value).unwrap().in_block,
-                                    loop_entry.lp,
-                                )
+                                trace!("Getting elab value from value {}", best_value);
+                                !self
+                                    .loop_analysis
+                                    .is_in_loop(elab_value.in_block, loop_entry.lp)
                             })
                             .unwrap_or(self.loop_stack.len());
                         trace!(
-                            " -> arg: elab_value {:?} hoist level {:?}",
-                            value,
+                            " -> arg: elab_value {:?} has hoist level {:?}",
+                            elab_value,
                             hoist_level
                         );
                         hoist_level
@@ -788,28 +795,31 @@ impl<'a> Elaborator<'a> {
                     self.loop_stack,
                 );
 
-                // We know that this is a pure inst, because
-                // non-pure roots have already been placed in the
-                // value-to-elab'd-value map, so they will not
-                // reach this stage of processing.
+                // We now must determine the location at which we place the
+                // instruction. This is the current block *unless* we hoist
+                // above a loop when all args are loop-invariant (and this op
+                // is pure).
                 //
-                // We now must determine the location at which we
-                // place the instruction. This is the current
-                // block *unless* we hoist above a loop when all
-                // args are loop-invariant (and this op is pure).
-                let (before, insert_block) = if loop_hoist_level == self.loop_stack.len() {
+                // If we are dealing with a skeleton instruction, skip this
+                // optimization.
+                //
+                // TODO: should we skip if we have rematerialized any of its
+                // arguments too? — (I made us skip it for now)
+                let (before, insert_block) = if loop_hoist_level == self.loop_stack.len()
+                    || !is_pure_for_egraph(self.func, inst_to_insert)
+                    || remat_arg
+                {
                     // Depends on some value at the current
                     // loop depth, or remat forces it here:
                     // place it at the current location.
-                    (before, self.func.layout.inst_block(before).unwrap())
+                    (block_terminator, block)
                 } else {
                     // Does not depend on any args at current
                     // loop depth: hoist out of loop.
                     self.stats.elaborate_licm_hoist += 1;
                     let data = &self.loop_stack[loop_hoist_level];
-                    // `data.hoist_block` should dominate `before`'s block.
-                    let before_block = self.func.layout.inst_block(before).unwrap();
-                    debug_assert!(self.domtree.dominates(data.hoist_block, before_block));
+                    // `data.hoist_block` should dominate the current block.
+                    debug_assert!(self.domtree.dominates(data.hoist_block, block));
                     // Determine the instruction at which we
                     // insert in `data.hoist_block`.
                     let before = self.func.layout.last_inst(data.hoist_block).unwrap();
@@ -818,32 +828,25 @@ impl<'a> Elaborator<'a> {
 
                 trace!(
                     " -> decided to place: before {} insert_block {}",
-                    before,
+                    block_terminator,
                     insert_block
                 );
 
-                trace!("Overwriting args for inst {}", inserted_inst);
-                self.func.dfg.overwrite_inst_values(
-                    inserted_inst,
-                    elaborated_args.into_iter().map(|elab_val| elab_val.value),
-                );
-
                 // Insert the instruction to the layout.
-                self.func
-                    .layout
-                    .insert_inst(inserted_inst, block_terminator);
+                self.func.layout.insert_inst(inst_to_insert, before);
             };
 
             // Update the LUC (last-use-counts) of instructions.
-            for arg in self.func.dfg.inst_values(inserted_inst) {
+            for value in original_values {
                 // Remove the instruction from the argument value's users.
-                // FIXME: Dimitris — I believe this assertion might be an invariant!
+                // FIXME: Dimitris — I believe a successful removal might be an invariant!
                 // I changed it to `original_inst`, but the assertion still panics.
-                assert!(self.value_users[arg].remove(&original_inst));
+                self.value_users[value].remove(&original_inst);
+
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
-                if self.value_users[arg].len() == 1 {
-                    let last_user = self.value_users[arg].iter().next().unwrap().clone();
+                if self.value_users[value].len() == 1 {
+                    let last_user = self.value_users[value].iter().next().unwrap().clone();
                     self.inst_ordering_info_map[last_user].last_use_count += 1;
                     self.ready_queue
                         .update(&last_user, self.inst_ordering_info_map[last_user]);
@@ -887,14 +890,14 @@ impl<'a> Elaborator<'a> {
             // generated by the instruction that was just inserted into the
             // layout. If any instruction ends up with zero dependencies, try to
             // insert it to the ready queue.
-            for result in self.func.dfg.inst_results(inserted_inst).iter().cloned() {
+            for result in self.func.dfg.inst_results(original_inst).iter().cloned() {
                 // For each result, find all instructions that use it and
                 // decrement their dependency count.
                 for user_inst in self.value_users[result].iter().cloned() {
                     trace!(
                         "Result {} of the just-inserted {} was needed by user {} — we'll decrement by 1 its current DC: {} -> {}",
                         result,
-                        inserted_inst,
+                        inst_to_insert,
                         user_inst,
                         self.dependencies_count[user_inst],
                         self.dependencies_count[user_inst] as i64 - 1,
@@ -924,29 +927,24 @@ impl<'a> Elaborator<'a> {
             }
         }
 
+        let terminator_values: Vec<Value> = self.func.dfg.inst_values(block_terminator).collect();
+
+        // Remove the block terminator from its arguments' value users sets.
+        for value in terminator_values.iter() {
+            self.value_users[*value].remove(&block_terminator);
+        }
+
         // Update the block terminator's arguments with elaborated values.
-        let terminator_elab_args: Vec<Value> = self
-            .func
-            .dfg
-            .inst_values(block_terminator)
-            .map(|arg| {
-                let best_value = self.value_to_best_value[arg].1;
+        self.func.dfg.overwrite_inst_values(
+            block_terminator,
+            terminator_values.into_iter().map(|value| {
+                let best_value = self.value_to_best_value[value].1;
                 self.value_to_elaborated_value
                     .get(&best_value)
                     .unwrap()
                     .value
-            })
-            .collect();
-
-        self.func
-            .dfg
-            .overwrite_inst_values(block_terminator, terminator_elab_args.into_iter());
-
-        // Remove the block terminator from its arguments' value users sets.
-        // NOTE: possibly unnecessary?
-        for arg in self.func.dfg.inst_values(block_terminator) {
-            self.value_users[arg].remove(&block_terminator);
-        }
+            }),
+        );
     }
 
     fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
