@@ -15,7 +15,7 @@ use crate::trace;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{packed_option::ReservedValue, SecondaryMap};
-use heapz::{DecreaseKey, Heap, RankPairingHeap};
+use hashheap::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{smallvec, SmallVec};
 
@@ -79,7 +79,7 @@ pub(crate) struct Elaborator<'a> {
     ///
     /// It is implemented as a Max Rank Pairing Heap, with the max element
     /// being the one that should be placed first each time.
-    ready_queue: RankPairingHeap<Inst, OrderingInfo>,
+    ready_queue: HashHeap<Inst, OrderingInfo>,
     /// Stats for various events during egraph processing, to help
     /// with optimization of this infrastructure.
     //
@@ -167,7 +167,7 @@ impl<'a> Elaborator<'a> {
             dependencies_count: SecondaryMap::with_default(0),
             // TODO: check if 4096 is a good value...
             value_users: SecondaryMap::with_capacity(4096),
-            ready_queue: RankPairingHeap::single_pass_max(),
+            ready_queue: HashHeap::new_maxheap(),
             stats,
             ctrl_plane,
         }
@@ -579,7 +579,7 @@ impl<'a> Elaborator<'a> {
             .opcode()
             .is_terminator());
 
-        while let Some(original_inst) = self.ready_queue.pop() {
+        while let Some((original_inst, _)) = self.ready_queue.pop() {
             // TODO: check if there is an implementation invariant that states
             // that each instruction that gets discovered through the ddg pass
             // will end up here as an `original_inst`.
@@ -840,9 +840,8 @@ impl<'a> Elaborator<'a> {
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[value].len() == 1 {
                     let last_user = self.value_users[value].iter().next().unwrap().clone();
-                    self.inst_ordering_info_map[last_user].last_use_count += 1;
                     self.ready_queue
-                        .update(&last_user, self.inst_ordering_info_map[last_user]);
+                        .modify(&last_user, |value| value.last_use_count += 1);
                 }
             }
 
