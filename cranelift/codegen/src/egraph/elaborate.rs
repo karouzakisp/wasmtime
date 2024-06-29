@@ -421,9 +421,7 @@ impl<'a> Elaborator<'a> {
         // A map used to skip skeleton instructions that we have already visited.
         let mut inst_already_visited: FxHashSet<Inst> = FxHashSet::default();
 
-        // Clear the `value_users` map. We need to reconstruct it for the current block.
-        // TODO: check if this is unecessary... (possibly not?)
-        SecondaryMap::clear(&mut self.value_users);
+        // Now `value_users` is for sure empty. We do not need to clear it for the current block.
 
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
@@ -466,35 +464,36 @@ impl<'a> Elaborator<'a> {
                 for value in unique_values {
                     trace!("Arg iteration for {}, with arg {}", inst, value);
 
-                    let BestEntry(_, value) = self.value_to_best_value[value];
-
+                    let BestEntry(_, best_value) = self.value_to_best_value[value];
+                    trace!("value {} has best value {}", value, best_value);
                     // Add the instruction to the value_users map of its arguments,
                     // and also create identity mappings for blockparams in the
                     // elaborated values' scoped map.
-                    if !self.value_users[value]
+                    if !self.value_users[best_value]
                         .iter()
                         .any(|&user_inst| user_inst == inst)
                     {
-                        match self.func.dfg.value_def(value) {
+                        match self.func.dfg.value_def(best_value) {
                             ValueDef::Param(block, _) => {
                                 self.value_to_elaborated_value.insert_if_absent(
-                                    value,
+                                    best_value,
                                     ElaboratedValue {
                                         in_block: block,
-                                        value,
+                                        value: best_value,
                                     },
                                 );
                             }
                             _ => {}
                         }
-                        self.value_users[value].insert(inst);
+                        trace!("Adding inst {} to val {}", inst, best_value);
+                        self.value_users[best_value].insert(inst);
                     }
 
                     // Make sure that the argument comes from an instruction result.
                     // NOTE: Should we check the block of the instruction here?
-                    if let Some(arg_inst) = self.func.dfg.value_def(value).inst() {
+                    if let Some(arg_inst) = self.func.dfg.value_def(best_value).inst() {
                         // Check if we have the argument already elaborated.
-                        if self.value_to_elaborated_value.get(&value).is_none() {
+                        if self.value_to_elaborated_value.get(&best_value).is_none() {
                             // Calculate the critical path for each instruction.
                             let prev_critical_path =
                                 self.inst_ordering_info_map[arg_inst].critical_path;
@@ -834,12 +833,14 @@ impl<'a> Elaborator<'a> {
             let unique_original_values: FxHashSet<Value> = original_values.into_iter().collect();
             for value in unique_original_values {
                 // Remove the instruction from the argument value's users.
-                debug_assert!(self.value_users[value].remove(&original_inst));
+                let BestEntry(_, best_value) = self.value_to_best_value[value];
+                trace!("Removing {} from value_users[{}] ", original_inst, value);
+                debug_assert!(self.value_users[best_value].remove(&original_inst));
 
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
-                if self.value_users[value].len() == 1 {
-                    let last_user = self.value_users[value].iter().next().unwrap().clone();
+                if self.value_users[best_value].len() == 1 {
+                    let last_user = self.value_users[best_value].iter().next().unwrap().clone();
                     self.inst_ordering_info_map[last_user].last_use_count += 1;
                     self.ready_queue
                         .update(&last_user, self.inst_ordering_info_map[last_user]);
@@ -924,7 +925,13 @@ impl<'a> Elaborator<'a> {
 
         // Remove the block terminator from its arguments' value users sets.
         for value in terminator_values.iter() {
+            trace!(
+                "Removing from value users {} the block term {}",
+                *value,
+                block_terminator
+            );
             self.value_users[*value].remove(&block_terminator);
+            assert_eq!(self.value_users[*value].is_empty(), true);
         }
 
         // Update the block terminator's arguments with elaborated values.
