@@ -831,12 +831,16 @@ impl<'a> Elaborator<'a> {
 
             // Update the LUC (last-use-counts) of instructions.
             let unique_original_values: FxHashSet<Value> = original_values.into_iter().collect();
-            for value in unique_original_values {
+            for value in &unique_original_values {
                 // Remove the instruction from the argument value's users.
-                let BestEntry(_, best_value) = self.value_to_best_value[value];
-                trace!("Removing {} from value_users[{}] ", original_inst, value);
-                debug_assert!(self.value_users[best_value].remove(&original_inst));
-
+                let BestEntry(_, best_value) = self.value_to_best_value[*value];
+                trace!(
+                    "Removing {} from value_users[{}] ",
+                    original_inst,
+                    best_value
+                );
+                let x = self.value_users[best_value].remove(&original_inst);
+                assert_eq!(x, true);
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[best_value].len() == 1 {
