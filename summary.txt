@@ -5,4 +5,5 @@
 5) line:620 all(value.to_elab.get()) little costly;
 6) line:704 clone value users? maybe think a faster way
 7) value users remove costly, look hashset details
-8)
+8) Check value_users if it is empty after each block. Have we removed all the instructions for each value?
+
