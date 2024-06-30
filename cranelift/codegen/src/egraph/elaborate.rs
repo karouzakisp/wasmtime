@@ -462,17 +462,19 @@ impl<'a> Elaborator<'a> {
                 let unique_values: FxHashSet<Value> =
                     self.func.dfg.inst_values(inst).into_iter().collect();
                 for value in unique_values {
-                    trace!("Arg iteration for {}, with arg {}", inst, value);
-
                     let BestEntry(_, best_value) = self.value_to_best_value[value];
-                    trace!("value {} has best value {}", value, best_value);
+
+                    trace!(
+                        "Arg iteration for {}, with arg {} (best value {})",
+                        inst,
+                        value,
+                        best_value
+                    );
+
                     // Add the instruction to the value_users map of its arguments,
                     // and also create identity mappings for blockparams in the
                     // elaborated values' scoped map.
-                    if !self.value_users[best_value]
-                        .iter()
-                        .any(|&user_inst| user_inst == inst)
-                    {
+                    if !self.value_users[best_value].contains(&inst) {
                         match self.func.dfg.value_def(best_value) {
                             ValueDef::Param(block, _) => {
                                 self.value_to_elaborated_value.insert_if_absent(
@@ -485,7 +487,7 @@ impl<'a> Elaborator<'a> {
                             }
                             _ => {}
                         }
-                        trace!("Adding inst {} to val {}", inst, best_value);
+                        trace!("Adding {} as a user of {}", inst, best_value);
                         self.value_users[best_value].insert(inst);
                     }
 
@@ -579,11 +581,7 @@ impl<'a> Elaborator<'a> {
             .is_terminator());
 
         while let Some(original_inst) = self.ready_queue.pop() {
-            // TODO: check if there is an implementation invariant that states
-            // that each instruction that gets discovered through the ddg pass
-            // will end up here as an `original_inst`.
-
-            assert!(original_inst != block_terminator);
+            debug_assert!(original_inst != block_terminator);
             trace!(
                 "  _____ New ready-queue instruction: {} _____",
                 original_inst
@@ -619,6 +617,7 @@ impl<'a> Elaborator<'a> {
             let original_values: Vec<Value> = self.func.dfg.inst_values(original_inst).collect();
             let mut elaborated_values: Vec<ElaboratedValue> =
                 Vec::with_capacity(original_values.len());
+
             for arg in original_values.iter() {
                 let best_value = self.value_to_best_value[*arg];
                 let mut elab_arg = self
@@ -686,12 +685,6 @@ impl<'a> Elaborator<'a> {
                             .collect();
 
                         for (result, new_result) in result_pairs.iter() {
-                            // Clone the value_users for each newly-generated result
-                            // using the maps from the old results.
-                            // TODO: maybe we never need to index `value_users` with
-                            // the new results.
-                            // self.value_users[*new_result] = self.value_users[*result].drain().collect();
-
                             let best_result = self.value_to_best_value[*result];
                             // NOTE: Possibly unecessary if we always index this
                             // with ddg-discovered values.
@@ -839,8 +832,9 @@ impl<'a> Elaborator<'a> {
                     original_inst,
                     best_value
                 );
-                let x = self.value_users[best_value].remove(&original_inst);
-                assert_eq!(x, true);
+                let removal_successful = self.value_users[best_value].remove(&original_inst);
+                debug_assert!(removal_successful);
+
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
                 if self.value_users[best_value].len() == 1 {
@@ -929,13 +923,14 @@ impl<'a> Elaborator<'a> {
 
         // Remove the block terminator from its arguments' value users sets.
         for value in terminator_values.iter() {
+            let BestEntry(_, best_value) = self.value_to_best_value[*value];
             trace!(
-                "Removing from value users {} the block term {}",
-                *value,
-                block_terminator
+                "Removing {} from the users set of {}",
+                block_terminator,
+                best_value,
             );
-            self.value_users[*value].remove(&block_terminator);
-            assert_eq!(self.value_users[*value].is_empty(), true);
+            self.value_users[best_value].remove(&block_terminator);
+            debug_assert!(self.value_users[best_value].is_empty());
         }
 
         // Update the block terminator's arguments with elaborated values.
