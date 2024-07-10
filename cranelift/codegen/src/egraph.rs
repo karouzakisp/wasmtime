@@ -793,7 +793,13 @@ impl<'a> EgraphPass<'a> {
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
                             };
+                            let seq_before = inst_seq;
                             inst_seq = inst_seq.wrapping_add(1);
+                            trace!(
+                                "Incrementing seq {} and final seq is {}",
+                                seq_before,
+                                inst_seq
+                            );
                         } else {
                             if ctx.optimize_skeleton_inst(inst) {
                                 trace!("Skeleton {} was optimized out", inst);
@@ -804,7 +810,13 @@ impl<'a> EgraphPass<'a> {
                                     critical_path: u16::MIN,
                                     seq: inst_seq,
                                 };
+                                let seq_before = inst_seq;
                                 inst_seq = inst_seq.wrapping_add(1);
+                                trace!(
+                                    "Incrementing seq {} and final seq is {}",
+                                    seq_before,
+                                    inst_seq
+                                );
                             }
                         }
                     }
