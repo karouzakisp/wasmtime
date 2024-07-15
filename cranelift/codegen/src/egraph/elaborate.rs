@@ -857,7 +857,14 @@ impl<'a> Elaborator<'a> {
                             | Opcode::Uload16x4
                             | Opcode::Sload16x4
                             | Opcode::Uload32x2
-                            | Opcode::Sload32x2 => true,
+                            | Opcode::Sload32x2
+                            | Opcode::Fdiv
+                            | Opcode::Udiv
+                            | Opcode::Sdiv
+                            | Opcode::UdivImm
+                            | Opcode::SdivImm
+                            | Opcode::Call
+                            | Opcode::CallIndirect => true,
                             _ => false,
                         } {
                             let last_user =
