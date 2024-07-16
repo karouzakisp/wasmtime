@@ -497,10 +497,36 @@ impl<'a> Elaborator<'a> {
                         // Check if we have the argument already elaborated.
                         if self.value_to_elaborated_value.get(&best_value).is_none() {
                             // Calculate the critical path for each instruction.
+                            let cp_jump = match self.func.dfg.insts[arg_inst].opcode() {
+                                Opcode::Load
+                                | Opcode::StackLoad
+                                | Opcode::DynamicStackLoad
+                                | Opcode::AtomicLoad
+                                | Opcode::Uload8
+                                | Opcode::Sload8
+                                | Opcode::Uload16
+                                | Opcode::Sload16
+                                | Opcode::Uload32
+                                | Opcode::Sload32
+                                | Opcode::Uload8x8
+                                | Opcode::Sload8x8
+                                | Opcode::Uload16x4
+                                | Opcode::Sload16x4
+                                | Opcode::Uload32x2
+                                | Opcode::Sload32x2 => 200,
+                                Opcode::Udiv
+                                | Opcode::Sdiv
+                                | Opcode::UdivImm
+                                | Opcode::SdivImm
+                                | Opcode::Fdiv => 100,
+                                Opcode::Fmul => 20,
+                                Opcode::Call | Opcode::CallIndirect => 5,
+                                _ => 1,
+                            };
                             let prev_critical_path =
                                 self.inst_ordering_info_map[arg_inst].critical_path;
                             let current_path_size =
-                                self.inst_ordering_info_map[inst].critical_path + 1;
+                                self.inst_ordering_info_map[inst].critical_path + cp_jump;
                             if current_path_size > prev_critical_path {
                                 self.inst_ordering_info_map[arg_inst].critical_path =
                                     current_path_size;
@@ -859,6 +885,7 @@ impl<'a> Elaborator<'a> {
                             | Opcode::Uload32x2
                             | Opcode::Sload32x2
                             | Opcode::Fdiv
+                            | Opcode::Fmul
                             | Opcode::Udiv
                             | Opcode::Sdiv
                             | Opcode::UdivImm
