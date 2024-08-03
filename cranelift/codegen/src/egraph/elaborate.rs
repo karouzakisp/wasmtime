@@ -891,8 +891,8 @@ impl<'a> Elaborator<'a> {
                             | Opcode::UdivImm
                             | Opcode::SdivImm
                             | Opcode::Call
-                            | Opcode::CallIndirect => true,
-                            _ => false,
+                            | Opcode::CallIndirect => false,
+                            _ => true,
                         } {
                             let last_user =
                                 self.value_users[best_value].iter().next().unwrap().clone();
