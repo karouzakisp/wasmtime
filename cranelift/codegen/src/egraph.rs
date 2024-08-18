@@ -31,6 +31,7 @@ mod elaborate;
 
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
+    load_user: bool,
     last_use_count: u8,
     // TODO: check if the u16 type is optimal
     critical_path: u16,
@@ -41,6 +42,7 @@ pub struct OrderingInfo {
 impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
+            load_user: false,
             last_use_count: u8::MIN,
             critical_path: u16::MIN,
             seq: u32::MAX,
@@ -50,7 +52,8 @@ impl OrderingInfo {
 
 impl PartialEq for OrderingInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.last_use_count == other.last_use_count
+        self.load_user == other.load_user
+            && self.last_use_count == other.last_use_count
             && self.critical_path == other.critical_path
             && self.seq == other.seq
     }
@@ -58,15 +61,23 @@ impl PartialEq for OrderingInfo {
 
 impl Ord for OrderingInfo {
     fn cmp(&self, other: &Self) -> Ordering {
-        let luc_ord = other.last_use_count.cmp(&self.last_use_count);
-        let cp_ord = other.critical_path.cmp(&self.critical_path);
-        let seq_ord = match other.seq.cmp(&self.seq) {
+        if self.load_user != other.load_user {
+            if self.load_user == true {
+                return Ordering::Less;
+            } else {
+                return Ordering::Greater;
+            }
+        }
+
+        let luc_ord = self.last_use_count.cmp(&other.last_use_count);
+        let cp_ord = self.critical_path.cmp(&other.critical_path);
+        let seq_ord = match self.seq.cmp(&other.seq) {
             Ordering::Equal => Ordering::Equal,
             Ordering::Greater => Ordering::Less,
             Ordering::Less => Ordering::Greater,
         };
 
-        let cp_diff = other.critical_path.abs_diff(self.critical_path);
+        let cp_diff = self.critical_path.abs_diff(other.critical_path);
 
         if cp_diff >= 100 {
             match cp_ord {
@@ -600,6 +611,16 @@ impl<'a> EgraphPass<'a> {
 
     /// Run the process.
     pub fn run(&mut self) {
+        use std::io::Write;
+        use std::path::PathBuf;
+
+        let base_dir = PathBuf::from("/home/dimitris_aspetakis/Tmp");
+        let mut path = base_dir.to_path_buf();
+        path.push(format!("wasm_func_{}", self.func.name));
+        path.set_extension("clif");
+        let mut output = std::fs::File::create(path).unwrap();
+        write!(output, "{}", self.func.display()).unwrap();
+
         // Some skeletons instructions cannot be removed due to alias analysis.
         // We need to handle them after all the alias analysis calls.
         self.empty_block_and_optimize();
@@ -789,6 +810,7 @@ impl<'a> EgraphPass<'a> {
                             trace!("-------egraph.rs : Removing {}", inst);
                             cursor.remove_inst_and_step_back();
                             self.inst_ordering_info_map[inst] = OrderingInfo {
+                                load_user: false,
                                 last_use_count: u8::MIN,
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
@@ -806,6 +828,7 @@ impl<'a> EgraphPass<'a> {
                                 cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
+                                    load_user: false,
                                     last_use_count: u8::MIN,
                                     critical_path: u16::MIN,
                                     seq: inst_seq,
@@ -852,6 +875,9 @@ impl<'a> EgraphPass<'a> {
     /// the Id-to-Value map and available to all dominated blocks and
     /// for the rest of this block. (This subsumes GVN.)
     fn elaborate(&mut self) {
+        use std::io::Write;
+        use std::path::PathBuf;
+
         let mut elaborator = Elaborator::new(
             self.func,
             &self.domtree,
@@ -862,6 +888,13 @@ impl<'a> EgraphPass<'a> {
             self.ctrl_plane,
         );
         elaborator.elaborate();
+
+        let base_dir = PathBuf::from("/home/dimitris_aspetakis/Tmp");
+        let mut path = base_dir.to_path_buf();
+        path.push(format!("wasm_func_opt_{}", self.func.name));
+        path.set_extension("clif");
+        let mut output = std::fs::File::create(path).unwrap();
+        write!(output, "{}", self.func.display()).unwrap();
 
         self.check_post_egraph();
     }
