@@ -841,8 +841,8 @@ impl<'a> Elaborator<'a> {
 
                 // If the value has exactly one user left, increment its last-use-count,
                 // and update the RankPairingHeap representing the ready queue.
-                if self.value_users[value].len() == 1 {
-                    let last_user = self.value_users[value].iter().next().unwrap().clone();
+                if self.value_users[*value].len() == 1 {
+                    let last_user = self.value_users[*value].iter().next().unwrap().clone();
                     self.ready_queue
                         .modify(&last_user, |value| value.last_use_count += 1);
                 }

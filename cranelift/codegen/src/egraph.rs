@@ -58,12 +58,12 @@ impl PartialEq for OrderingInfo {
 
 impl Ord for OrderingInfo {
     fn cmp(&self, other: &Self) -> Ordering {
-        let ord = other.last_use_count.cmp(&self.last_use_count);
+        let ord = self.last_use_count.cmp(&other.last_use_count);
         match ord {
             Ordering::Equal => {
-                let ord = other.critical_path.cmp(&self.critical_path);
+                let ord = self.critical_path.cmp(&other.critical_path);
                 match ord {
-                    Ordering::Equal => match other.seq.cmp(&self.seq) {
+                    Ordering::Equal => match self.seq.cmp(&other.seq) {
                         Ordering::Equal => Ordering::Equal,
                         Ordering::Greater => Ordering::Less,
                         Ordering::Less => Ordering::Greater,
@@ -78,7 +78,7 @@ impl Ord for OrderingInfo {
 
 impl PartialOrd for OrderingInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.cmp(&self))
+        Some(self.cmp(&other))
     }
 }
 
