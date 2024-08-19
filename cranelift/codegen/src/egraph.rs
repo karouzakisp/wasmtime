@@ -101,7 +101,7 @@ impl Ord for OrderingInfo {
 
 impl PartialOrd for OrderingInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(other.cmp(&self))
+        Some(self.cmp(&other))
     }
 }
 
