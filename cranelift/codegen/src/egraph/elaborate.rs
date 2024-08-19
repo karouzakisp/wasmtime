@@ -470,7 +470,7 @@ impl<'a> Elaborator<'a> {
         let mut inst_already_visited: FxHashSet<Inst> = FxHashSet::default();
 
         // Now `value_users` is for sure empty. We do not need to clear it for the current block.
-
+        //
         // Iterate over all skeleton instructions to find true data dependencies.
         while let Some(skeleton_inst) = next_skeleton_inst {
             trace!("Outer loop, iterating over skeleton {}", skeleton_inst);
@@ -1066,6 +1066,7 @@ impl<'a> Elaborator<'a> {
             }
         }
 
+        assert_eq!(scheduled_load_users.len(), 0);
         let terminator_values: Vec<Value> = self.func.dfg.inst_values(block_terminator).collect();
 
         // Remove the block terminator from its arguments' value users sets.
