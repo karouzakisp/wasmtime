@@ -614,7 +614,7 @@ impl<'a> EgraphPass<'a> {
         use std::io::Write;
         use std::path::PathBuf;
 
-        let base_dir = PathBuf::from("/home/dimitris_aspetakis/Tmp");
+        let base_dir = PathBuf::from("/tmp/cranelift_results/");
         let mut path = base_dir.to_path_buf();
         path.push(format!("wasm_func_{}", self.func.name));
         path.set_extension("clif");
@@ -889,7 +889,7 @@ impl<'a> EgraphPass<'a> {
         );
         elaborator.elaborate();
 
-        let base_dir = PathBuf::from("/home/dimitris_aspetakis/Tmp");
+        let base_dir = PathBuf::from("/tmp/cranelift_results/");
         let mut path = base_dir.to_path_buf();
         path.push(format!("wasm_func_opt_{}", self.func.name));
         path.set_extension("clif");
