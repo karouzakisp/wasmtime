@@ -706,6 +706,7 @@ impl CompileCommand {
             target,
             output,
             emit_clif,
+            emit_opt_clif: None,
             module,
         }
     }
