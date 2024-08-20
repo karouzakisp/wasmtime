@@ -716,6 +716,10 @@ impl<'a> Elaborator<'a> {
                 ) {
                     remat_arg = true;
                     self.value_to_best_value[elab_arg.value] = best_value;
+                    trace!(
+                        "Inserting {} inside value_to_elaborated_value.",
+                        best_value.1
+                    );
                     self.value_to_elaborated_value
                         .insert_if_absent(best_value.1, elab_arg);
                 };
@@ -769,6 +773,10 @@ impl<'a> Elaborator<'a> {
                                 value: *new_result,
                                 in_block: block,
                             };
+                            trace!(
+                                "Inserting {} inside value_to_elaborated_value.",
+                                best_result.1
+                            );
                             self.value_to_elaborated_value
                                 .insert_if_absent(best_result.1, elab_value);
 
@@ -791,6 +799,10 @@ impl<'a> Elaborator<'a> {
                                 value: result,
                                 in_block: block,
                             };
+                            trace!(
+                                "Inserting {} inside value_to_elaborated_value.",
+                                best_result.1
+                            );
                             self.value_to_elaborated_value
                                 .insert_if_absent(best_result.1, elab_value);
                         }
@@ -895,6 +907,7 @@ impl<'a> Elaborator<'a> {
 
                 // Insert the instruction to the layout.
                 self.func.layout.insert_inst(inst_to_insert, before);
+                trace!("Just inserted {} to the layout!!!", inst_to_insert);
             };
 
             // Update the LUC (last-use-counts) of instructions.
@@ -998,6 +1011,10 @@ impl<'a> Elaborator<'a> {
                 if (metadata.schedule_priority == 0 || self.ready_queue.len() == 0)
                     && self.dependencies_count[metadata.user_inst] == 0
                 {
+                    trace!(
+                        "Pushing from metadata {} to the ready queue cause ready_Queue is empty ",
+                        metadata.user_inst
+                    );
                     self.ready_queue.push(
                         metadata.user_inst,
                         self.inst_ordering_info_map[metadata.user_inst],
@@ -1026,7 +1043,7 @@ impl<'a> Elaborator<'a> {
                     );
                     self.dependencies_count[user_inst] -= 1;
                     if scheduled_was_load
-                        && self.inst_ordering_info_map[user_inst].load_user != false
+                        && self.inst_ordering_info_map[user_inst].load_user == false
                     {
                         trace!(
                             "Inserting {} to the scheduled_load_users from load {}",
@@ -1049,13 +1066,13 @@ impl<'a> Elaborator<'a> {
                     // is the next skeleton in order and hasn't already been
                     // inserted.
                     if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator {
-                        if is_pure_for_egraph(self.func, user_inst) && !scheduled_was_load {
+                        if is_pure_for_egraph(self.func, user_inst) && (!scheduled_was_load) {
                             trace!("Inserting pure {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                         } else if !skeleton_already_inserted
                             && Some(&user_inst) == self.skeleton_inst_order.front()
-                            && !scheduled_was_load
+                            && (!scheduled_was_load)
                         {
                             trace!("Inserting skeleton {} to the ready queue", user_inst);
                             self.ready_queue
@@ -1064,8 +1081,24 @@ impl<'a> Elaborator<'a> {
                     }
                 }
             }
+            if self.ready_queue.len() == 0 {
+                if let Some(load_userI) = scheduled_load_users.pop_front() {
+                    self.ready_queue.push(
+                        load_userI.user_inst,
+                        self.inst_ordering_info_map[load_userI.user_inst],
+                    );
+                }
+            }
         }
-
+        for elem in scheduled_load_users.iter() {
+            trace!(
+                "User is {} with priority {}, with dep count{} from load inst {} ",
+                elem.user_inst,
+                elem.schedule_priority,
+                self.dependencies_count[elem.user_inst],
+                elem.load_inst,
+            )
+        }
         assert_eq!(scheduled_load_users.len(), 0);
         let terminator_values: Vec<Value> = self.func.dfg.inst_values(block_terminator).collect();
 
@@ -1086,6 +1119,7 @@ impl<'a> Elaborator<'a> {
             block_terminator,
             terminator_values.into_iter().map(|value| {
                 let best_value = self.value_to_best_value[value].1;
+                trace!("Trying to get elab value from best_value {}", best_value);
                 self.value_to_elaborated_value
                     .get(&best_value)
                     .unwrap()
