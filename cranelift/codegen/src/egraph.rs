@@ -611,16 +611,6 @@ impl<'a> EgraphPass<'a> {
 
     /// Run the process.
     pub fn run(&mut self) {
-        use std::io::Write;
-        use std::path::PathBuf;
-
-        let base_dir = PathBuf::from("/tmp/cranelift_results/");
-        let mut path = base_dir.to_path_buf();
-        path.push(format!("wasm_func_{}", self.func.name));
-        path.set_extension("clif");
-        let mut output = std::fs::File::create(path).unwrap();
-        write!(output, "{}", self.func.display()).unwrap();
-
         // Some skeletons instructions cannot be removed due to alias analysis.
         // We need to handle them after all the alias analysis calls.
         self.empty_block_and_optimize();
@@ -875,9 +865,6 @@ impl<'a> EgraphPass<'a> {
     /// the Id-to-Value map and available to all dominated blocks and
     /// for the rest of this block. (This subsumes GVN.)
     fn elaborate(&mut self) {
-        use std::io::Write;
-        use std::path::PathBuf;
-
         let mut elaborator = Elaborator::new(
             self.func,
             &self.domtree,
@@ -888,13 +875,6 @@ impl<'a> EgraphPass<'a> {
             self.ctrl_plane,
         );
         elaborator.elaborate();
-
-        let base_dir = PathBuf::from("/tmp/cranelift_results/");
-        let mut path = base_dir.to_path_buf();
-        path.push(format!("wasm_func_opt_{}", self.func.name));
-        path.set_extension("clif");
-        let mut output = std::fs::File::create(path).unwrap();
-        write!(output, "{}", self.func.display()).unwrap();
 
         self.check_post_egraph();
     }

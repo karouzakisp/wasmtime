@@ -1043,6 +1043,7 @@ impl<'a> Elaborator<'a> {
                     );
                     self.dependencies_count[user_inst] -= 1;
                     if scheduled_was_load
+                        && user_inst != block_terminator
                         && self.inst_ordering_info_map[user_inst].load_user == false
                     {
                         trace!(
@@ -1082,10 +1083,10 @@ impl<'a> Elaborator<'a> {
                 }
             }
             if self.ready_queue.len() == 0 {
-                if let Some(load_userI) = scheduled_load_users.pop_front() {
+                if let Some(load_user) = scheduled_load_users.pop_front() {
                     self.ready_queue.push(
-                        load_userI.user_inst,
-                        self.inst_ordering_info_map[load_userI.user_inst],
+                        load_user.user_inst,
+                        self.inst_ordering_info_map[load_user.user_inst],
                     );
                 }
             }
