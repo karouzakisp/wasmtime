@@ -653,7 +653,7 @@ impl<'a> Elaborator<'a> {
         assert!(self.func.dfg.insts[block_terminator]
             .opcode()
             .is_terminator());
-        let mut scheduled_load_users: VecDeque<LoadUserMetadata> = VecDeque::new();
+        let mut load_users: VecDeque<LoadUserMetadata> = VecDeque::new();
 
         while let Some((original_inst, _)) = self.ready_queue.pop() {
             debug_assert!(original_inst != block_terminator);
@@ -1002,12 +1002,12 @@ impl<'a> Elaborator<'a> {
             let scheduled_was_load = self.is_load(original_inst);
 
             // First, iterate and modify as needed
-            for metadata in &mut scheduled_load_users {
+            for metadata in &mut load_users {
                 metadata.decrement_priority();
             }
 
             // Then, filter out and move elements to `ready_queue`
-            scheduled_load_users.retain(|metadata| {
+            load_users.retain(|metadata| {
                 if (metadata.schedule_priority == 0 || self.ready_queue.len() == 0)
                     && self.dependencies_count[metadata.user_inst] == 0
                 {
@@ -1051,7 +1051,7 @@ impl<'a> Elaborator<'a> {
                             user_inst,
                             original_inst
                         );
-                        scheduled_load_users.push_back(LoadUserMetadata {
+                        load_users.push_back(LoadUserMetadata {
                             schedule_priority: 40,
                             load_inst: original_inst,
                             user_inst,
@@ -1066,7 +1066,10 @@ impl<'a> Elaborator<'a> {
                     // is pure, or in case it's in the block's skeleton, if it
                     // is the next skeleton in order and hasn't already been
                     // inserted.
-                    if self.dependencies_count[user_inst] == 0 && user_inst != block_terminator {
+                    if self.dependencies_count[user_inst] == 0
+                        && user_inst != block_terminator
+                        && !self.inst_ordering_info_map[user_inst].load_user
+                    {
                         if is_pure_for_egraph(self.func, user_inst) && (!scheduled_was_load) {
                             trace!("Inserting pure {} to the ready queue", user_inst);
                             self.ready_queue
@@ -1083,7 +1086,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
             if self.ready_queue.len() == 0 {
-                if let Some(load_user) = scheduled_load_users.pop_front() {
+                if let Some(load_user) = load_users.pop_front() {
                     self.ready_queue.push(
                         load_user.user_inst,
                         self.inst_ordering_info_map[load_user.user_inst],
@@ -1091,7 +1094,7 @@ impl<'a> Elaborator<'a> {
                 }
             }
         }
-        for elem in scheduled_load_users.iter() {
+        for elem in load_users.iter() {
             trace!(
                 "User is {} with priority {}, with dep count{} from load inst {} ",
                 elem.user_inst,
@@ -1100,7 +1103,7 @@ impl<'a> Elaborator<'a> {
                 elem.load_inst,
             )
         }
-        assert_eq!(scheduled_load_users.len(), 0);
+        assert_eq!(load_users.len(), 0);
         let terminator_values: Vec<Value> = self.func.dfg.inst_values(block_terminator).collect();
 
         // Remove the block terminator from its arguments' value users sets.
