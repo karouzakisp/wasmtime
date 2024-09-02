@@ -31,7 +31,7 @@ mod elaborate;
 
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
-    load_user: bool,
+    load_user: Option<Block>,
     last_use_count: u8,
     // TODO: check if the u16 type is optimal
     critical_path: u16,
@@ -42,7 +42,7 @@ pub struct OrderingInfo {
 impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
-            load_user: false,
+            load_user: None,
             last_use_count: u8::MIN,
             critical_path: u16::MIN,
             seq: u32::MAX,
@@ -62,7 +62,7 @@ impl PartialEq for OrderingInfo {
 impl Ord for OrderingInfo {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.load_user != other.load_user {
-            if self.load_user == true {
+            if self.load_user != None {
                 return Ordering::Less;
             } else {
                 return Ordering::Greater;
@@ -800,7 +800,7 @@ impl<'a> EgraphPass<'a> {
                             trace!("-------egraph.rs : Removing {}", inst);
                             cursor.remove_inst_and_step_back();
                             self.inst_ordering_info_map[inst] = OrderingInfo {
-                                load_user: false,
+                                load_user: None,
                                 last_use_count: u8::MIN,
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
@@ -818,7 +818,7 @@ impl<'a> EgraphPass<'a> {
                                 cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
-                                    load_user: false,
+                                    load_user: None,
                                     last_use_count: u8::MIN,
                                     critical_path: u16::MIN,
                                     seq: inst_seq,

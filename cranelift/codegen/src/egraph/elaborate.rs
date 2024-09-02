@@ -989,6 +989,7 @@ impl<'a> Elaborator<'a> {
                     self.dependencies_count[next_skeleton_inst] -= 1;
                     if self.dependencies_count[next_skeleton_inst] == 0
                         && next_skeleton_inst != block_terminator
+                        && self.inst_ordering_info_map[next_skeleton_inst].load_user != Some(block)
                     {
                         self.ready_queue.push(
                             next_skeleton_inst,
@@ -1042,9 +1043,12 @@ impl<'a> Elaborator<'a> {
                         self.dependencies_count[user_inst] as i64 - 1,
                     );
                     self.dependencies_count[user_inst] -= 1;
+                    // NOTE: if the user was already placed in an earlier block,
+                    // and that block dominates the current block, we might be
+                    // regressing a redundancy optimization.
                     if scheduled_was_load
                         && user_inst != block_terminator
-                        && self.inst_ordering_info_map[user_inst].load_user == false
+                        && self.inst_ordering_info_map[user_inst].load_user != Some(block)
                     {
                         trace!(
                             "Inserting {} to the scheduled_load_users from load {}",
@@ -1056,7 +1060,7 @@ impl<'a> Elaborator<'a> {
                             load_inst: original_inst,
                             user_inst,
                         });
-                        self.inst_ordering_info_map[user_inst].load_user = true;
+                        self.inst_ordering_info_map[user_inst].load_user = Some(block);
                     }
 
                     // TODO: rework documentation
@@ -1068,15 +1072,16 @@ impl<'a> Elaborator<'a> {
                     // inserted.
                     if self.dependencies_count[user_inst] == 0
                         && user_inst != block_terminator
-                        && !self.inst_ordering_info_map[user_inst].load_user
+                        && self.inst_ordering_info_map[user_inst].load_user != Some(block)
+                        && !scheduled_was_load
                     {
-                        if is_pure_for_egraph(self.func, user_inst) && (!scheduled_was_load) {
+                        if is_pure_for_egraph(self.func, user_inst) {
                             trace!("Inserting pure {} to the ready queue", user_inst);
                             self.ready_queue
                                 .push(user_inst, self.inst_ordering_info_map[user_inst]);
                         } else if !skeleton_already_inserted
+                            // TODO: check if the below check is necessary.
                             && Some(&user_inst) == self.skeleton_inst_order.front()
-                            && (!scheduled_was_load)
                         {
                             trace!("Inserting skeleton {} to the ready queue", user_inst);
                             self.ready_queue
@@ -1085,13 +1090,23 @@ impl<'a> Elaborator<'a> {
                     }
                 }
             }
+            // FIXME
             if self.ready_queue.len() == 0 {
-                if let Some(load_user) = load_users.pop_front() {
-                    self.ready_queue.push(
-                        load_user.user_inst,
-                        self.inst_ordering_info_map[load_user.user_inst],
-                    );
-                }
+                    load_users
+                        .retain(|LoadUserMetadata { user_inst, .. }| {
+                            if self.dependencies_count[*user_inst] == 0
+                                && *user_inst != block_terminator 
+                            {
+                                trace!("Inserting {} to the ready queue (ready_queue was empty, but load_users wasn't)", user_inst);
+                                self.ready_queue.push(
+                                    *user_inst,
+                                    self.inst_ordering_info_map[*user_inst],
+                                );
+                                false
+                            } else {
+                                true
+                            }
+                        });
             }
         }
         for elem in load_users.iter() {
