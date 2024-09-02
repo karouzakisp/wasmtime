@@ -69,33 +69,7 @@ impl Ord for OrderingInfo {
             }
         }
 
-        let luc_ord = self.last_use_count.cmp(&other.last_use_count);
-        let cp_ord = self.critical_path.cmp(&other.critical_path);
-        let seq_ord = match self.seq.cmp(&other.seq) {
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Less,
-            Ordering::Less => Ordering::Greater,
-        };
-
-        let cp_diff = self.critical_path.abs_diff(other.critical_path);
-
-        if cp_diff >= 100 {
-            match cp_ord {
-                Ordering::Equal => match luc_ord {
-                    Ordering::Equal => seq_ord,
-                    _ => luc_ord,
-                },
-                _ => cp_ord,
-            }
-        } else {
-            match luc_ord {
-                Ordering::Equal => match cp_ord {
-                    Ordering::Equal => seq_ord,
-                    _ => cp_ord,
-                },
-                _ => luc_ord,
-            }
-        }
+        self.seq.cmp(&other.seq)
     }
 }
 
