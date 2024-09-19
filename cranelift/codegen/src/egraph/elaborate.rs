@@ -455,6 +455,9 @@ impl<'a> Elaborator<'a> {
                 }
                 inst_already_visited.insert(inst);
 
+                self.inst_ordering_info_map[inst].last_use_count =
+                    -(self.func.dfg.inst_results(inst).iter().count() as i8);
+
                 // Skip already visited arguments in case the instruction uses
                 // the same argument value multiple times. Basically, if we
                 // have `add x0, x1, x1` we don't want to add two dependencies
