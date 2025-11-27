@@ -31,7 +31,7 @@ mod elaborate;
 
 #[derive(Copy, Clone, Eq)]
 pub struct OrderingInfo {
-    last_use_count: u8,
+    last_use_count: i8,
     // TODO: check if the u16 type is optimal
     critical_path: u16,
     // TODO: check if the u32 type is optimal
@@ -41,7 +41,7 @@ pub struct OrderingInfo {
 impl OrderingInfo {
     pub fn reserved_value() -> Self {
         OrderingInfo {
-            last_use_count: u8::MIN,
+            last_use_count: i8::MIN,
             critical_path: u16::MIN,
             seq: u32::MAX,
         }
@@ -775,9 +775,10 @@ impl<'a> EgraphPass<'a> {
                             // see them, and the instruction exists as a pure
                             // enode in the eclass, so we can remove it.
                             trace!("-------egraph.rs : Removing {}", inst);
+                            let num_results = ctx.func.dfg.inst_results(inst).len() as i8;
                             cursor.remove_inst_and_step_back();
                             self.inst_ordering_info_map[inst] = OrderingInfo {
-                                last_use_count: u8::MIN,
+                                last_use_count: -num_results,
                                 critical_path: u16::MIN,
                                 seq: inst_seq,
                             };
@@ -787,8 +788,9 @@ impl<'a> EgraphPass<'a> {
                                 trace!("Skeleton {} was optimized out", inst);
                                 cursor.remove_inst_and_step_back();
                             } else {
+                                let num_results = ctx.func.dfg.inst_results(inst).len() as i8;
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
-                                    last_use_count: u8::MIN,
+                                    last_use_count: -num_results,
                                     critical_path: u16::MIN,
                                     seq: inst_seq,
                                 };
