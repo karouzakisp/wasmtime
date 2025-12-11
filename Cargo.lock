@@ -766,6 +766,7 @@ dependencies = [
  "env_logger 0.11.5",
  "gimli 0.32.3",
  "hashbrown 0.15.2",
+ "heapz",
  "log",
  "postcard",
  "proptest",
@@ -1694,6 +1695,12 @@ dependencies = [
  "foldhash",
  "serde",
 ]
+
+[[package]]
+name = "heapz"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c73be534804a439c63f224d4790ea3889ca91fc4389367f9ca4cf741878b315f"
 
 [[package]]
 name = "heck"
