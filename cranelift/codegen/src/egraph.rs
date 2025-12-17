@@ -24,11 +24,9 @@ use core::hash::Hasher;
 use cranelift_control::ControlPlane;
 use cranelift_entity::SecondaryMap;
 use cranelift_entity::packed_option::ReservedValue;
-use heapz::RankPairingHeap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
-use std::hash::Hasher;
 
 mod cost;
 mod elaborate;
@@ -995,9 +993,14 @@ impl<'a> EgraphPass<'a> {
                             };
                             inst_seq = inst_seq.wrapping_add(1);
                         } else {
-                            if ctx.optimize_skeleton_inst(ctx, inst) {
+                            if let Some(cmd) = ctx.optimize_skeleton_inst(inst, block) {
+                                Self::execute_skeleton_inst_simplification(
+                                    cmd,
+                                    &mut cursor,
+                                    &mut value_to_opt_value,
+                                    inst,
+                                );
                                 trace!("Skeleton {} was optimized out", inst);
-                                cursor.remove_inst_and_step_back();
                             } else {
                                 self.inst_ordering_info_map[inst] = OrderingInfo {
                                     last_use_count: u8::MIN,
@@ -1155,7 +1158,7 @@ impl<'a> CtxEq<(Type, InstructionData), (Type, InstructionData)> for GVNContext<
         (a_ty, a_inst): &(Type, InstructionData),
         (b_ty, b_inst): &(Type, InstructionData),
     ) -> bool {
-        a_ty == b_ty && a_inst.eq(b_inst)
+        a_ty == b_ty && a_inst.eq(b_inst, self.value_lists)
     }
 }
 

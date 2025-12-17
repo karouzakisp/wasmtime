@@ -766,7 +766,7 @@ dependencies = [
  "env_logger 0.11.5",
  "gimli 0.32.3",
  "hashbrown 0.15.2",
- "heapz",
+ "hashheap",
  "log",
  "postcard",
  "proptest",
@@ -1697,10 +1697,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "heapz"
-version = "1.1.4"
+name = "hashheap"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c73be534804a439c63f224d4790ea3889ca91fc4389367f9ca4cf741878b315f"
+checksum = "293dd5d803c11a79292dabe873dcff9ed9e9390e1eb46f637e8574a08840c719"
 
 [[package]]
 name = "heck"
@@ -5216,9 +5216,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.57"
+version = "0.3.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b17e741662c70c8bd24ac5c5b18de314a2c26c32bf8346ee1e6f53de919c283"
+checksum = "a98bc3c33f0fe7e59ad7cd041b89034fa82a7c2d4365ca538dda6cdaf513863c"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

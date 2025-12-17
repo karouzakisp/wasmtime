@@ -7,7 +7,6 @@ use super::VecDeque;
 use super::cost::Cost;
 use crate::ctxhash::NullCtx;
 use crate::dominator_tree::DominatorTree;
-use crate::dominator_tree::DominatorTreePreorder;
 use crate::hash_map::Entry as HashEntry;
 use crate::inst_predicates::is_pure_for_egraph;
 use crate::ir::{Block, Function, Inst, Value, ValueDef};
@@ -17,14 +16,13 @@ use crate::trace;
 use alloc::vec::Vec;
 use cranelift_control::ControlPlane;
 use cranelift_entity::{SecondaryMap, packed_option::ReservedValue};
-use heapz::{DecreaseKey, Heap, RankPairingHeap};
+use hashheap::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::{SmallVec, smallvec};
-use std::collections::BinaryHeap;
 
 pub(crate) struct Elaborator<'a> {
     func: &'a mut Function,
-    domtree: &'a DominatorTreePreorder,
+    domtree: &'a DominatorTree,
     _loop_analysis: &'a LoopAnalysis,
     /// Map from Value that is produced by a pure Inst (and was thus
     /// not in the side-effecting skeleton) to the value produced by
@@ -86,7 +84,7 @@ pub(crate) struct Elaborator<'a> {
     ///
     /// It is implemented as a Max Rank Pairing Heap, with the max element
     /// being the one that should be placed first each time.
-    ready_queue: RankPairingHeap<Inst, OrderingInfo>,
+    ready_queue: HashHeap<Inst, OrderingInfo>,
     /// Stats for various events during egraph processing, to help
     /// with optimization of this infrastructure.
     //
@@ -177,7 +175,7 @@ impl<'a> Elaborator<'a> {
             skeleton_inst_order: VecDeque::new(),
             dependencies_count: SecondaryMap::with_default(0),
             value_users: SecondaryMap::new(),
-            ready_queue: RankPairingHeap::single_pass_max(),
+            ready_queue: HashHeap::new_maxheap(),
             stats,
             ctrl_plane,
         }
@@ -504,7 +502,7 @@ impl<'a> Elaborator<'a> {
                     // NOTE: Should we check the block of the instruction here?
                     if let Some(arg_inst) = self.func.dfg.value_def(arg).inst() {
                         // Check if we have the argument already elaborated.
-                        if self.value_to_elaborated_value.get(ctx, &arg).is_none() {
+                        if self.value_to_elaborated_value.get(&NullCtx, &arg).is_none() {
                             // Calculate the critical path for each instruction.
                             let prev_critical_path =
                                 self.inst_ordering_info_map[arg_inst].critical_path;
@@ -602,7 +600,7 @@ impl<'a> Elaborator<'a> {
         // block ought to have just the block terminator inside it. Maybe
         // formulate an analogous assertion.
 
-        while let Some(mut inst_to_insert) = self.ready_queue.pop() {
+        while let Some((mut inst_to_insert, _)) = self.ready_queue.pop() {
             // FIXME: only needed for debugging... ////////////////////////////
             assert!(inst_to_insert != block_terminator);
             ///////////////////////////////////////////////////////////////////
@@ -627,7 +625,7 @@ impl<'a> Elaborator<'a> {
                     .iter()
                     .all(|inst_result| {
                         self.value_to_elaborated_value
-                            .get(ctx, inst_result)
+                            .get(&NullCtx, inst_result)
                             .is_some()
                     })
                     && is_pure_for_egraph(self.func, inst_to_insert);
@@ -702,7 +700,7 @@ impl<'a> Elaborator<'a> {
                             };
                             let best_result = self.value_to_best_value[*result];
                             self.value_to_elaborated_value.insert_if_absent(
-                                ctx,
+                                &NullCtx,
                                 best_result.1,
                                 elab_value,
                             );
@@ -728,7 +726,7 @@ impl<'a> Elaborator<'a> {
                             };
                             let best_result = self.value_to_best_value[result];
                             self.value_to_elaborated_value.insert_if_absent(
-                                ctx,
+                                &NullCtx,
                                 best_result.1,
                                 elab_value,
                             );
@@ -757,7 +755,7 @@ impl<'a> Elaborator<'a> {
                             if self.func.layout.inst_block(arg_inst).is_some() {
                                 let elab_value = self
                                     .value_to_elaborated_value
-                                    .get(ctx, &best_value)
+                                    .get(&NullCtx, &best_value)
                                     .unwrap()
                                     .value;
                                 match self.func.dfg.value_def(elab_value) {
@@ -820,12 +818,12 @@ impl<'a> Elaborator<'a> {
                 // performance.
                 self.value_users[arg].retain(|&mut arg_user| arg_user != inserted_inst);
                 // If the value has exactly one user left, increment its last-use-count,
-                // and update the RankPairingHeap representing the ready queue.
+                // and update the HashHeap representing the ready queue.
                 if self.value_users[arg].len() == 1 {
                     let last_user = self.value_users[arg].get(0).unwrap().clone();
-                    self.inst_ordering_info_map[last_user].last_use_count += 1;
-                    self.ready_queue
-                        .update(&last_user, self.inst_ordering_info_map[last_user]);
+                    self.ready_queue.modify(&last_user, |ordering_info| {
+                        ordering_info.last_use_count += 1
+                    });
                 }
             }
 
@@ -958,7 +956,7 @@ impl<'a> Elaborator<'a> {
                     if self.func.layout.inst_block(arg_inst).is_some() {
                         let elab_value = self
                             .value_to_elaborated_value
-                            .get(ctx, &best_value)
+                            .get(&NullCtx, &best_value)
                             .unwrap()
                             .value;
                         elab_value
@@ -993,7 +991,7 @@ impl<'a> Elaborator<'a> {
         ///////////////////////////////////////////////////////////////////////
     }
 
-    fn elaborate_domtree(&mut self, domtree: &DominatorTreePreorder) {
+    fn elaborate_domtree(&mut self, domtree: &DominatorTree) {
         self.block_stack.push(BlockStackEntry::Elaborate {
             block: self.func.layout.entry_block().unwrap(),
             _idom: None,
